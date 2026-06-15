@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* shadcn base variables */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+
+    /* URT Custom Design Tokens - Light Mode */
+    --urt-paper: #F7F6F2;
+    --urt-surface: #FFFFFF;
+    --urt-ink: #1A1A1A;
+    --urt-ink-light: #6B6B6B;
+    --urt-ink-faint: #A8A8A8;
+    --urt-border: #E0DED8;
+    --urt-border-subtle: #EBE9E4;
+    --urt-accent: #6B8F71;
+    --urt-accent-hover: #5A7A60;
+    --urt-accent-bg: rgba(107, 143, 113, 0.08);
+    --urt-accent-bg-strong: rgba(107, 143, 113, 0.15);
+    --urt-danger: #C44B4B;
+    --urt-danger-bg: rgba(196, 75, 75, 0.08);
+    --urt-warning: #D4A03A;
+    --urt-success: #6B8F71;
+    --urt-overlay: rgba(26, 26, 26, 0.35);
+    --urt-timer-normal: #1A1A1A;
+    --urt-timer-warning: #C44B4B;
+    --urt-nav-answered: #6B8F71;
+    --urt-nav-current: #1A1A1A;
+    --urt-nav-unanswered: #FFFFFF;
+  }
+
+  .dark {
+    --background: 220 12% 8%;
+    --foreground: 40 10% 90%;
+    --card: 220 12% 11%;
+    --card-foreground: 40 10% 90%;
+    --popover: 220 12% 11%;
+    --popover-foreground: 40 10% 90%;
+    --primary: 40 10% 90%;
+    --primary-foreground: 220 12% 8%;
+    --secondary: 220 8% 16%;
+    --secondary-foreground: 40 10% 90%;
+    --muted: 220 8% 16%;
+    --muted-foreground: 40 5% 60%;
+    --accent: 220 8% 16%;
+    --accent-foreground: 40 10% 90%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 8% 18%;
+    --input: 220 8% 18%;
+    --ring: 40 10% 80%;
+
+    /* URT Custom Design Tokens - Dark Mode */
+    --urt-paper: #0F1115;
+    --urt-surface: #1A1D23;
+    --urt-ink: #E8E6E1;
+    --urt-ink-light: #9A9893;
+    --urt-ink-faint: #5A5853;
+    --urt-border: #2A2D35;
+    --urt-border-subtle: #252830;
+    --urt-accent: #6B8F71;
+    --urt-accent-hover: #5A7A60;
+    --urt-accent-bg: rgba(107, 143, 113, 0.12);
+    --urt-accent-bg-strong: rgba(107, 143, 113, 0.2);
+    --urt-danger: #C44B4B;
+    --urt-danger-bg: rgba(196, 75, 75, 0.12);
+    --urt-warning: #D4A03A;
+    --urt-success: #6B8F71;
+    --urt-overlay: rgba(0, 0, 0, 0.5);
+    --urt-timer-normal: #E8E6E1;
+    --urt-timer-warning: #C44B4B;
+    --urt-nav-answered: #6B8F71;
+    --urt-nav-current: #E8E6E1;
+    --urt-nav-unanswered: #1A1D23;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}

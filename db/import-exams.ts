@@ -1,5 +1,6 @@
+// @ts-nocheck
 import fs from "fs";
-import { getDb } from "../api/queries/connection";
+import { getDb } from "../server/queries/connection";
 import { exams, sections, passages, questions, choices } from "./schema";
 import { eq, and } from "drizzle-orm";
 

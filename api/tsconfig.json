@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@contracts/*": ["./contracts/*"],
+      "@db/*": ["./db/*"]
+    }
+  },
+  "include": ["**/*.ts", "../db/**/*.ts", "../contracts/**/*.ts"]
+}

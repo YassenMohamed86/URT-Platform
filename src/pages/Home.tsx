@@ -1,53 +1,15 @@
-import { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router";
-import { BookOpen, Leaf, FlaskConical, ChevronRight, TrendingUp } from "lucide-react";
+import { BookOpen, TrendingUp, ChevronRight, Clock, ShieldCheck, Database } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import MeditativeParticles from "@/components/MeditativeParticles";
-import { useExamStore } from "@/stores/examStore";
+import { useExamStore } from "@/stores";
 
-const exams = [
-  {
-    id: "english",
-    name: "English",
-    icon: BookOpen,
-    time: 90,
-    passages: 5,
-    questions: 50,
-    maxScore: 40,
-    color: "#6B8F71",
-  },
-  {
-    id: "biology_geology",
-    name: "Biology \u0026 Geology",
-    icon: Leaf,
-    time: 90,
-    passages: "5 bio + 4 geo",
-    questions: 50,
-    maxScore: 40,
-    color: "#D4A03A",
-  },
-  {
-    id: "chemistry_physics",
-    name: "Chemistry \u0026 Physics",
-    icon: FlaskConical,
-    time: 90,
-    passages: "5 chem + 5 phys",
-    questions: 50,
-    maxScore: 40,
-    color: "#C44B4B",
-  },
-];
+
 
 export default function Home() {
   const navigate = useNavigate();
   const { results } = useExamStore();
-  const [selectedExam, setSelectedExam] = useState<string | null>(null);
-  const [customTime, setCustomTime] = useState(90);
-  const [difficulty, setDifficulty] = useState("all");
-
-  const startExam = (examId: string) => {
-    navigate(`/exam/${examId}?time=${customTime}&difficulty=${difficulty}`);
-  };
 
   // Dashboard data
   const subjectColors: Record<string, string> = {
@@ -76,15 +38,14 @@ export default function Home() {
           Master Your University Readiness Test
         </h1>
         <p
-          className="text-center max-w-[560px] mt-4 z-10"
+          className="text-center max-w-[600px] mt-6 z-10"
           style={{
-            fontSize: "1rem",
-            lineHeight: 1.65,
+            fontSize: "1.05rem",
+            lineHeight: 1.6,
             color: "var(--urt-ink-light)",
           }}
         >
-          Practice in a realistic digital environment. Focused, timed, and built
-          for Egyptian students.
+          The University Readiness Test is a critical milestone for Egyptian students. We built this platform to provide a quiet, distraction-free space where you can take full-length practice exams, experience real time limits, and master the material that matters.
         </p>
         <div className="mt-16 z-10 flex flex-col items-center gap-2">
           <div
@@ -98,187 +59,67 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Exam Cards */}
+      {/* Overview / How it Works */}
+      <section className="px-6 py-20 border-t" style={{ backgroundColor: "var(--urt-surface)", borderColor: "var(--urt-border)" }}>
+        <div className="max-w-[960px] mx-auto">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] mb-12 text-center" style={{ color: "var(--urt-ink-faint)" }}>
+            Platform Overview
+          </p>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
+                <Clock className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Realistic Constraints</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
+                Each practice test enforces the actual exam time limits. The timer doesn't stop, forcing you to develop the time-management skills critical for the real test day.
+              </p>
+            </div>
+            
+            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Honest Evaluation</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
+                Answer keys are never sent to your browser during the test. Your submission is securely evaluated on our backend, ensuring your score reflects your actual ability without loopholes.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
+                <Database className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Persistent Progress</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
+                Your exam history is saved directly on your device. You can track your scores over time in your dashboard—no complicated account registration needed to start practicing.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Exam CTA */}
       <section
         className="px-6 py-20"
         style={{ backgroundColor: "var(--urt-paper)" }}
       >
-        <div className="max-w-[960px] mx-auto">
+        <div className="max-w-[960px] mx-auto text-center">
           <p
-            className="text-center mb-10 tracking-[0.08em] text-xs font-semibold uppercase"
+            className="mb-6 tracking-[0.08em] text-xs font-semibold uppercase"
             style={{ color: "var(--urt-ink-faint)" }}
           >
-            Choose Your Exam
+            Ready to start?
           </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {exams.map((exam) => {
-              const Icon = exam.icon;
-              const isSelected = selectedExam === exam.id;
-              return (
-                <div
-                  key={exam.id}
-                  className="flex flex-col p-8 rounded-xl transition-all duration-300 cursor-pointer"
-                  style={{
-                    backgroundColor: "var(--urt-surface)",
-                    border: `1px solid ${isSelected ? exam.color + "50" : "var(--urt-border)"}`,
-                    boxShadow:
-                      "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)",
-                    transform: isSelected ? "translateY(-2px)" : "none",
-                    minHeight: "280px",
-                  }}
-                  onClick={() => setSelectedExam(exam.id)}
-                >
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: exam.color + "15" }}
-                  >
-                    <Icon className="w-5 h-5" style={{ color: exam.color }} />
-                  </div>
-                  <h3
-                    className="mt-4 text-lg font-semibold leading-tight"
-                    style={{ color: "var(--urt-ink)" }}
-                  >
-                    {exam.name}
-                  </h3>
-                  <p
-                    className="mt-1 text-sm"
-                    style={{ color: "var(--urt-ink-light)" }}
-                  >
-                    {exam.time} minutes · {exam.questions} questions
-                  </p>
-                  <div
-                    className="my-5 w-full h-px"
-                    style={{ backgroundColor: "var(--urt-border-subtle)" }}
-                  />
-
-                  {isSelected ? (
-                    <div className="flex-1 flex flex-col gap-3">
-                      <div>
-                        <label
-                          className="text-xs font-semibold uppercase tracking-wider"
-                          style={{ color: "var(--urt-ink-faint)" }}
-                        >
-                          Time (min)
-                        </label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCustomTime(Math.max(30, customTime - 5));
-                            }}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                            style={{
-                              backgroundColor: "var(--urt-border-subtle)",
-                              color: "var(--urt-ink)",
-                            }}
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            value={customTime}
-                            onChange={(e) =>
-                              setCustomTime(
-                                Math.min(
-                                  180,
-                                  Math.max(30, parseInt(e.target.value) || 30)
-                                )
-                              )
-                            }
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-14 h-8 text-center text-sm rounded-lg border outline-none"
-                            style={{
-                              borderColor: "var(--urt-border)",
-                              backgroundColor: "var(--urt-surface)",
-                              color: "var(--urt-ink)",
-                            }}
-                          />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCustomTime(Math.min(180, customTime + 5));
-                            }}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
-                            style={{
-                              backgroundColor: "var(--urt-border-subtle)",
-                              color: "var(--urt-ink)",
-                            }}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                      <div>
-                        <label
-                          className="text-xs font-semibold uppercase tracking-wider"
-                          style={{ color: "var(--urt-ink-faint)" }}
-                        >
-                          Difficulty
-                        </label>
-                        <div className="flex gap-1.5 mt-1 flex-wrap">
-                          {["all", "easy", "medium", "hard"].map((d) => (
-                            <button
-                              key={d}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDifficulty(d);
-                              }}
-                              className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-                              style={{
-                                backgroundColor:
-                                  difficulty === d
-                                    ? exam.color
-                                    : "var(--urt-border-subtle)",
-                                color:
-                                  difficulty === d
-                                    ? "#fff"
-                                    : "var(--urt-ink-light)",
-                              }}
-                            >
-                              {d.charAt(0).toUpperCase() + d.slice(1)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startExam(exam.id);
-                        }}
-                        className="mt-auto w-full h-12 rounded-full text-white font-medium flex items-center justify-center gap-2 transition-all hover:opacity-90"
-                        style={{ backgroundColor: exam.color }}
-                      >
-                        Begin Exam
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedExam(exam.id);
-                      }}
-                      className="mt-auto w-full h-12 rounded-full font-medium flex items-center justify-center transition-all"
-                      style={{
-                        backgroundColor: "var(--urt-ink)",
-                        color: "var(--urt-surface)",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = exam.color)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor =
-                          "var(--urt-ink)")
-                      }
-                    >
-                      Start Exam
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => navigate("/exams")}
+            className="px-8 py-4 rounded-full text-white font-medium inline-flex items-center gap-2 transition-all hover:scale-105 shadow-lg"
+            style={{ backgroundColor: "var(--urt-accent)" }}
+          >
+            <BookOpen className="w-5 h-5" />
+            Browse Practice Exams
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
       </section>
 
@@ -515,5 +356,3 @@ function ScoreChart({
     />
   );
 }
-
-import React from "react";

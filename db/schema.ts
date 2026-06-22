@@ -1,94 +1,116 @@
-import {
-  mysqlTable,
-  mysqlEnum,
-  serial,
-  varchar,
-  text,
-  timestamp,
-  int,
-  bigint,
-} from "drizzle-orm/mysql-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
-export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
-  unionId: varchar("unionId", { length: 255 }).notNull().unique(),
-  name: varchar("name", { length: 255 }),
-  email: varchar("email", { length: 320 }),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  unionId: text("unionId").notNull().unique(),
+  name: text("name"),
+  email: text("email"),
   avatar: text("avatar"),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt")
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
-  lastSignInAt: timestamp("lastSignInAt").defaultNow().notNull(),
+  role: text("role").default("user").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).defaultNow().notNull().$onUpdate(() => new Date()),
+  lastSignInAt: integer("lastSignInAt", { mode: "timestamp" }).defaultNow().notNull(),
 });
-
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-export const questions = mysqlTable("questions", {
-  id: serial("id").primaryKey(),
-  subject: varchar("subject", { length: 32 }).notNull(),
-  passageTitle: varchar("passage_title", { length: 255 }),
-  passageText: text("passage_text").notNull(),
-  passageNumber: int("passage_number").notNull(),
-  questionText: text("question_text").notNull(),
-  optionA: text("option_a").notNull(),
-  optionB: text("option_b").notNull(),
-  optionC: text("option_c").notNull(),
-  optionD: text("option_d").notNull(),
-  correctAnswer: varchar("correct_answer", { length: 1 }).notNull(),
-  difficulty: varchar("difficulty", { length: 16 }).notNull(),
-  skillTag: varchar("skill_tag", { length: 64 }),
-  explanation: text("explanation"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdate(() => new Date()),
+export const exams = sqliteTable("exams", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  year: integer("year").notNull(),
+  session: text("session").notNull(),
+  note: text("note"),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
 });
+export type Exam = typeof exams.$inferSelect;
 
+export const sections = sqliteTable("sections", {
+  id: text("id").primaryKey(),
+  examId: text("exam_id").notNull(),
+  subject: text("subject").notNull(),
+});
+export type Section = typeof sections.$inferSelect;
+
+export const passages = sqliteTable("passages", {
+  id: text("id").primaryKey(),
+  sectionId: text("section_id").notNull(),
+  title: text("title"),
+  bodyText: text("body_text").notNull(),
+  orderIndex: integer("order_index").notNull(),
+});
+export type Passage = typeof passages.$inferSelect;
+
+export const questions = sqliteTable("questions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  passageId: text("passage_id").notNull(),
+  number: integer("number").notNull(),
+  text: text("text").notNull(),
+  correctAnswer: text("correct_answer").notNull(),
+  answerStatus: text("answer_status").default("verified").notNull(),
+  reviewNote: text("review_note"),
+});
 export type Question = typeof questions.$inferSelect;
-export type InsertQuestion = typeof questions.$inferInsert;
 
-export const uploads = mysqlTable("uploads", {
-  id: serial("id").primaryKey(),
-  uploaderName: varchar("uploader_name", { length: 128 }).notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description").notNull(),
-  subject: varchar("subject", { length: 32 }).notNull(),
-  fileUrl: varchar("file_url", { length: 512 }).notNull(),
-  fileType: varchar("file_type", { length: 32 }).notNull(),
-  upvotes: int("upvotes").default(0).notNull(),
-  downvotes: int("downvotes").default(0).notNull(),
-  status: varchar("status", { length: 16 }).default("pending").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const choices = sqliteTable("choices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  questionId: integer("question_id").notNull(),
+  label: text("label").notNull(),
+  text: text("text").notNull(),
 });
+export type Choice = typeof choices.$inferSelect;
 
+export const attempts = sqliteTable("attempts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  examId: text("exam_id").notNull(),
+  startedAt: integer("started_at", { mode: "timestamp" }).defaultNow().notNull(),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
+  score: integer("score"),
+});
+export type Attempt = typeof attempts.$inferSelect;
+
+export const responses = sqliteTable("responses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  attemptId: integer("attempt_id").notNull(),
+  questionId: integer("question_id").notNull(),
+  selectedLabel: text("selected_label").notNull(),
+  isCorrect: integer("is_correct").notNull(),
+  answeredAt: integer("answered_at", { mode: "timestamp" }).defaultNow().notNull(),
+});
+export type Response = typeof responses.$inferSelect;
+
+export const uploads = sqliteTable("uploads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  uploaderName: text("uploader_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  subject: text("subject").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type").notNull(),
+  upvotes: integer("upvotes").default(0).notNull(),
+  downvotes: integer("downvotes").default(0).notNull(),
+  status: text("status").default("pending").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
+});
 export type Upload = typeof uploads.$inferSelect;
 export type InsertUpload = typeof uploads.$inferInsert;
 
-export const comments = mysqlTable("comments", {
-  id: serial("id").primaryKey(),
-  uploadId: bigint("upload_id", { mode: "number", unsigned: true })
-    .notNull(),
-  commenterName: varchar("commenter_name", { length: 128 }).notNull(),
+export const comments = sqliteTable("comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  uploadId: integer("upload_id").notNull(),
+  commenterName: text("commenter_name").notNull(),
   commentText: text("comment_text").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
 });
-
 export type Comment = typeof comments.$inferSelect;
 export type InsertComment = typeof comments.$inferInsert;
 
-export const votes = mysqlTable("votes", {
-  id: serial("id").primaryKey(),
-  uploadId: bigint("upload_id", { mode: "number", unsigned: true })
-    .notNull(),
-  sessionId: varchar("session_id", { length: 64 }).notNull(),
-  voteType: varchar("vote_type", { length: 8 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const votes = sqliteTable("votes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  uploadId: integer("upload_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  voteType: text("vote_type").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
 });
-
 export type Vote = typeof votes.$inferSelect;
 export type InsertVote = typeof votes.$inferInsert;

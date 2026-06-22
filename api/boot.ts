@@ -5,7 +5,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
-import { createOAuthCallbackHandler } from "./kimi/auth";
+import { createOAuthCallbackHandler } from "./oauth/auth";
 import { Paths } from "@contracts/constants";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
@@ -36,7 +36,8 @@ app.post("/api/upload-file", async (c) => {
       return c.json({ error: "File size exceeds 10MB limit" }, 400);
     }
 
-    const uploadDir = env.uploadDir;
+    const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+    const uploadDir = isVercel ? "/tmp" : env.uploadDir;
     const dateDir = new Date().toISOString().split("T")[0];
     const targetDir = join(uploadDir, dateDir);
     await mkdir(targetDir, { recursive: true });
@@ -58,7 +59,9 @@ app.post("/api/upload-file", async (c) => {
 // Serve uploaded files
 app.get("/uploads/*", async (c) => {
   const path = c.req.path;
-  const filePath = join(env.uploadDir, path.replace("/uploads/", ""));
+  const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
+  const uploadDir = isVercel ? "/tmp" : env.uploadDir;
+  const filePath = join(uploadDir, path.replace("/uploads/", ""));
 
   try {
     const fileStat = await stat(filePath);

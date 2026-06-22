@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router";
 import { useEffect } from "react";
-import { useThemeStore } from "./stores/themeStore";
+import { useThemeStore } from "@/stores";
 import Home from "./pages/Home";
 import Exam from "./pages/Exam";
 import Results from "./pages/Results";
@@ -8,6 +8,7 @@ import Community from "./pages/Community";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import ExamPicker from "./pages/ExamPicker";
 import FloatingTimer from "./components/FloatingTimer";
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/exams" element={<ExamPicker />} />
         <Route path="/exam/:type" element={<Exam />} />
         <Route path="/results" element={<Results />} />
         <Route path="/community" element={<Community />} />

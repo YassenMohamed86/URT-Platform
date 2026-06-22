@@ -12,7 +12,7 @@ import {
   Filter,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import { useCommunityStore } from "@/stores/communityStore";
+import { useCommunityStore } from "@/stores";
 
 const subjects = [
   "all",
@@ -39,6 +39,14 @@ export default function Community() {
       <Navbar />
 
       <div className="max-w-[960px] mx-auto px-6 pt-24 pb-16">
+        
+        <div className="mb-10 text-center max-w-[640px] mx-auto">
+          <h1 className="text-3xl font-serif mb-3 text-[var(--urt-ink)]">Student Community</h1>
+          <p className="text-[var(--urt-ink-light)] leading-relaxed">
+            Preparation shouldn't happen in isolation. This space is built for students to share notes, pool resources, and help each other out. Upload study guides you found helpful, or browse what others are studying.
+          </p>
+        </div>
+
         {/* Upload Area */}
         <button
           onClick={() => setShowUploadModal(true)}

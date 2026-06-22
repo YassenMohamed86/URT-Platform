@@ -1,68 +1,70 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
-import { useExamStore } from "@/stores/examStore";
+import { useExamStore } from "@/stores";
 import { AlertTriangle } from "lucide-react";
 
 interface Question {
   id: number;
   questionText: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctAnswer: string;
-  explanation: string | null;
+  options: { A: string; B: string; C: string; D: string };
   subject: string;
   passageNumber: number;
   passageTitle: string | null;
   passageText: string;
-  difficulty: string;
-  skillTag: string | null;
 }
 
 export default function Exam() {
-  const { type } = useParams<{ type: string }>();
-  const [searchParams] = useSearchParams();
+  const { type } = useParams<{ type: string }>(); // Now this is examId
   const navigate = useNavigate();
   const addResult = useExamStore((s) => s.addResult);
 
-  const timeLimit = parseInt(searchParams.get("time") || "90");
-  const difficulty = searchParams.get("difficulty") || "all";
+  const { data: examData, isLoading, error } = trpc.exam.getExamContent.useQuery(
+    { examId: type as string },
+    { enabled: !!type }
+  );
 
-  const { data: passageGroups, isLoading } = trpc.question.getByExam.useQuery({
-    examType: type as "english" | "biology_geology" | "chemistry_physics",
-    difficulty: difficulty as "all" | "easy" | "medium" | "hard",
-  });
+  const submitAttemptMutation = trpc.exam.submitAttempt.useMutation();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [timeLeft, setTimeLeft] = useState(timeLimit * 60);
+  const [timeLeft, setTimeLeft] = useState(90 * 60);
   const [timerWarning, setTimerWarning] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(true);
   const startTimeRef = useRef(Date.now());
 
-  // Flatten questions from passage groups
+  // Flatten questions from examData
   useEffect(() => {
-    if (passageGroups) {
+    if (examData) {
       const flat: Question[] = [];
-      passageGroups.forEach((pg) => {
-        pg.questions.forEach((q) => {
-          flat.push({
-            ...q,
-            passageText: pg.passageText,
-            passageTitle: pg.passageTitle,
-            passageNumber: pg.passageNumber,
-            subject: pg.subject,
+      examData.sections.forEach((section) => {
+        section.passages.forEach((passage) => {
+          passage.questions.forEach((q) => {
+            const options: any = { A: "", B: "", C: "", D: "" };
+            q.choices.forEach((c) => {
+              options[c.label] = c.text;
+            });
+
+            flat.push({
+              id: q.id,
+              questionText: q.text,
+              options,
+              passageText: passage.bodyText,
+              passageTitle: passage.title,
+              passageNumber: passage.orderIndex + 1,
+              subject: section.subject,
+            });
           });
         });
       });
       setQuestions(flat);
+      setTimeLeft(90 * 60); // Hardcode 90m for now, or could use examData
+      startTimeRef.current = Date.now();
     }
-  }, [passageGroups]);
+  }, [examData]);
 
   // Timer
   useEffect(() => {
@@ -127,61 +129,52 @@ export default function Exam() {
 
   const submitExam = useCallback(() => {
     const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    let correct = 0;
-    questions.forEach((q) => {
-      if (answers[q.id] === q.correctAnswer) correct++;
-    });
-
-    const rawScore = correct;
-    const totalQuestions = questions.length;
-    const maxScore =
-      type === "english"
-        ? 40
-        : type === "biology_geology"
-          ? 40
-          : type === "chemistry_physics"
-            ? 40
-            : 40;
-    const scaledScore = (rawScore / totalQuestions) * maxScore;
-    const percentage = (rawScore / totalQuestions) * 100;
-
-    const result = {
-      examType: type || "",
-      subject:
-        type === "english"
-          ? "English"
-          : type === "biology_geology"
-            ? "Biology & Geology"
-            : "Chemistry & Physics",
-      score: Math.round(scaledScore * 10) / 10,
-      maxScore,
-      percentage: Math.round(percentage * 10) / 10,
-      timeTaken,
-      totalQuestions,
-      correctCount: correct,
+    
+    submitAttemptMutation.mutate({
+      examId: type as string,
+      userId: 0,
       answers,
-      questions: questions.map((q) => ({
-        id: q.id,
-        questionText: q.questionText,
-        passageText: q.passageText,
-        options: {
-          A: q.optionA,
-          B: q.optionB,
-          C: q.optionC,
-          D: q.optionD,
-        },
-        correctAnswer: q.correctAnswer,
-        userAnswer: answers[q.id] || null,
-        explanation: q.explanation,
-        subject: q.subject,
-        passageNumber: q.passageNumber,
-      })),
-      date: new Date().toISOString(),
-    };
+    }, {
+      onSuccess: (data) => {
+        const rawScore = data.score;
+        const totalQuestions = data.totalQuestions;
+        const maxScore = 40; // Default max score
+        const scaledScore = (rawScore / totalQuestions) * maxScore;
+        const percentage = (rawScore / totalQuestions) * 100;
 
-    addResult(result);
-    navigate("/results", { state: { result } });
-  }, [questions, answers, type, addResult, navigate]);
+        const result = {
+          examType: type || "",
+          subject: examData?.title || "Exam",
+          score: Math.round(scaledScore * 10) / 10,
+          maxScore,
+          percentage: Math.round(percentage * 10) / 10,
+          timeTaken,
+          totalQuestions,
+          correctCount: rawScore,
+          answers,
+          questions: questions.map((q) => ({
+            id: q.id,
+            questionText: q.questionText,
+            passageText: q.passageText,
+            options: q.options,
+            correctAnswer: data.feedback[q.id]?.correctAnswer || "A",
+            userAnswer: answers[q.id] || null,
+            explanation: null, // No explanations in new schema yet
+            subject: q.subject,
+            passageNumber: q.passageNumber,
+          })),
+          date: new Date().toISOString(),
+        };
+
+        addResult(result);
+        navigate("/results", { state: { result } });
+      },
+      onError: (err) => {
+        alert("Failed to submit exam: " + err.message);
+        setExamFinished(false);
+      }
+    });
+  }, [questions, answers, type, examData, addResult, navigate, submitAttemptMutation]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -192,13 +185,6 @@ export default function Exam() {
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === questions.length && questions.length > 0;
   const currentQ = questions[currentQIndex];
-
-  // Get current passage info
-  const currentPassageGroup = passageGroups?.find(
-    (pg) =>
-      pg.subject === currentQ?.subject &&
-      pg.passageNumber === currentQ?.passageNumber
-  );
 
   if (isLoading) {
     return (
@@ -217,15 +203,21 @@ export default function Exam() {
     );
   }
 
-  if (questions.length === 0) {
+  if (error || questions.length === 0) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center"
+        className="min-h-screen flex items-center justify-center flex-col gap-4"
         style={{ backgroundColor: "var(--urt-paper)" }}
       >
-        <p style={{ color: "var(--urt-ink-light)" }}>
-          No questions found for this exam and difficulty.
+        <p style={{ color: "var(--urt-warning)" }}>
+          {error ? error.message : "No questions found for this exam."}
         </p>
+        <button
+          onClick={() => navigate("/exams")}
+          className="px-4 py-2 bg-[var(--urt-accent)] text-white rounded-lg"
+        >
+          Go Back
+        </button>
       </div>
     );
   }
@@ -287,7 +279,7 @@ export default function Exam() {
           }}
         >
           <div className="p-8">
-            {currentPassageGroup?.passageTitle && (
+            {currentQ?.passageTitle && (
               <h2
                 className="text-xl mb-4"
                 style={{
@@ -295,7 +287,7 @@ export default function Exam() {
                   color: "var(--urt-ink)",
                 }}
               >
-                {currentPassageGroup.passageTitle}
+                {currentQ.passageTitle}
               </h2>
             )}
             <p
@@ -365,7 +357,7 @@ export default function Exam() {
                 const isSelected =
                   answers[currentQ?.id || 0] === letter;
                 const optionText = currentQ
-                  ? currentQ[`option${letter}` as keyof Question]
+                  ? currentQ.options[letter]
                   : "";
                 return (
                   <button
@@ -399,7 +391,7 @@ export default function Exam() {
                         fontWeight: isSelected ? 500 : 400,
                       }}
                     >
-                      {optionText as string}
+                      {optionText}
                     </span>
                     <span
                       className="ml-auto text-xs hidden md:block"
@@ -427,18 +419,20 @@ export default function Exam() {
               {allAnswered ? (
                 <button
                   onClick={() => setShowSubmitConfirm(true)}
-                  className="px-6 h-11 rounded-full text-white text-sm font-medium transition-all hover:translate-y-[-1px]"
+                  disabled={submitAttemptMutation.isPending}
+                  className="px-6 h-11 rounded-full text-white text-sm font-medium transition-all hover:translate-y-[-1px] disabled:opacity-50"
                   style={{ backgroundColor: "var(--urt-accent)" }}
                 >
-                  Submit Exam
+                  {submitAttemptMutation.isPending ? "Submitting..." : "Submit Exam"}
                 </button>
               ) : (
                 <button
                   onClick={() => setShowSubmitConfirm(true)}
-                  className="px-4 py-2 text-sm rounded-lg transition-all"
+                  disabled={submitAttemptMutation.isPending}
+                  className="px-4 py-2 text-sm rounded-lg transition-all disabled:opacity-50"
                   style={{ color: "var(--urt-ink-faint)" }}
                 >
-                  Submit Early
+                  {submitAttemptMutation.isPending ? "Submitting..." : "Submit Early"}
                 </button>
               )}
               <button
@@ -472,17 +466,6 @@ export default function Exam() {
               Navigation
             </p>
 
-            {/* Subject dividers */}
-            {type !== "english" && (
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-px flex-1" style={{ backgroundColor: "var(--urt-accent)" }} />
-                <span className="text-xs font-medium" style={{ color: "var(--urt-accent)" }}>
-                  {questions[0]?.subject === "biology" ? "Biology" : "Chemistry"}
-                </span>
-                <div className="h-px flex-1" style={{ backgroundColor: "var(--urt-accent)" }} />
-              </div>
-            )}
-
             <div className="grid grid-cols-5 gap-2">
               {questions.map((q, i) => {
                 const isAnswered = !!answers[q.id];
@@ -490,7 +473,6 @@ export default function Exam() {
 
                 // Subject divider in grid
                 if (
-                  type !== "english" &&
                   i > 0 &&
                   q.subject !== questions[i - 1].subject
                 ) {
@@ -498,8 +480,8 @@ export default function Exam() {
                     <div key={`divider-${i}`} className="col-span-5 my-1">
                       <div className="flex items-center gap-2">
                         <div className="h-px flex-1" style={{ backgroundColor: "var(--urt-accent)" }} />
-                        <span className="text-xs font-medium" style={{ color: "var(--urt-accent)" }}>
-                          {q.subject === "geology" ? "Geology" : "Physics"}
+                        <span className="text-xs font-medium" style={{ color: "var(--urt-accent)", textTransform: "capitalize" }}>
+                          {q.subject}
                         </span>
                         <div className="h-px flex-1" style={{ backgroundColor: "var(--urt-accent)" }} />
                       </div>

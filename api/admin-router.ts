@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { uploads, comments, questions } from "@db/schema";
+import { uploads, comments, questions, sections, passages } from "@db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { TRPCError } from "@trpc/server";
@@ -138,6 +138,36 @@ export const adminRouter = createRouter({
     .mutation(async ({ input }) => {
       const db = getDb();
       await db.delete(comments).where(eq(comments.id, input.id));
+      return { success: true };
+    }),
+
+  getFlaggedQuestions: adminProcedure.query(async () => {
+    const db = getDb();
+    const flagged = await db
+      .select({
+        id: questions.id,
+        passageTitle: passages.title,
+        passageNumber: passages.orderIndex,
+        questionText: questions.text,
+        reviewNote: questions.reviewNote,
+        subject: sections.subject,
+      })
+      .from(questions)
+      .innerJoin(passages, eq(questions.passageId, passages.id))
+      .innerJoin(sections, eq(passages.sectionId, sections.id))
+      .where(eq(questions.answerStatus, "flagged"))
+      .orderBy(desc(questions.id));
+    return flagged;
+  }),
+
+  verifyQuestion: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db
+        .update(questions)
+        .set({ answerStatus: "verified" })
+        .where(eq(questions.id, input.id));
       return { success: true };
     }),
 

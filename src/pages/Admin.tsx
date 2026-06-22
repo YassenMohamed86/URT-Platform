@@ -225,123 +225,84 @@ function StatsCards() {
 }
 
 function QuestionsTab() {
-  const [selectedSubject, setSelectedSubject] = useState("english");
-  const [page, setPage] = useState(1);
-  const subjects = ["english", "biology", "geology", "chemistry", "physics"];
+  const { data: flaggedQuestions, refetch } = trpc.admin.getFlaggedQuestions.useQuery();
 
-  const { data, refetch } = trpc.question.list.useQuery({
-    subject: selectedSubject,
-    page,
-    limit: 20,
-  });
-
-  const deleteMutation = trpc.question.delete.useMutation({
+  const verifyMutation = trpc.admin.verifyQuestion.useMutation({
     onSuccess: () => refetch(),
   });
 
   return (
-    <div className="flex gap-6">
-      {/* Sidebar */}
-      <div className="w-60 shrink-0">
-        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--urt-ink-faint)" }}>
-          Subjects
+    <div>
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold" style={{ color: "var(--urt-ink)" }}>Flagged Questions Review Queue</h3>
+        <p className="text-sm" style={{ color: "var(--urt-ink-light)" }}>
+          These questions were imported with unverified or flagged status. Review and verify them.
         </p>
-        <div className="space-y-1">
-          {subjects.map((s) => (
-            <button
-              key={s}
-              onClick={() => { setSelectedSubject(s); setPage(1); }}
-              className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all"
-              style={{
-                backgroundColor: selectedSubject === s ? "var(--urt-accent-bg)" : "transparent",
-                color: selectedSubject === s ? "var(--urt-accent)" : "var(--urt-ink-light)",
-                borderLeft: selectedSubject === s ? "3px solid var(--urt-accent)" : "3px solid transparent",
-              }}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1">
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--urt-border)" }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ backgroundColor: "var(--urt-paper)" }}>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>#</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Passage</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Question</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Difficulty</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.questions.map((q, i) => (
-                <tr
-                  key={q.id}
-                  className="border-t transition-colors"
-                  style={{
-                    borderColor: "var(--urt-border-subtle)",
-                    backgroundColor: "var(--urt-surface)",
-                  }}
-                >
-                  <td className="px-4 py-3" style={{ color: "var(--urt-ink-light)" }}>
-                    {(page - 1) * 20 + i + 1}
-                  </td>
-                  <td className="px-4 py-3 max-w-[120px] truncate" style={{ color: "var(--urt-ink)" }}>
-                    {q.passageTitle || `Passage ${q.passageNumber}`}
-                  </td>
-                  <td className="px-4 py-3 max-w-[300px] truncate" style={{ color: "var(--urt-ink)" }}>
-                    {q.questionText}
-                  </td>
-                  <td className="px-4 py-3">
-                    <DifficultyBadge difficulty={q.difficulty} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => {
-                        if (confirm("Delete this question?")) {
-                          deleteMutation.mutate({ id: q.id });
-                        }
-                      }}
-                      className="p-1.5 rounded transition-all hover:bg-[var(--urt-danger-bg)]"
-                      style={{ color: "var(--urt-danger)" }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {data?.questions.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8" style={{ color: "var(--urt-ink-light)" }}>
-                    No questions found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {data && data.total > 20 && (
-          <div className="flex justify-center gap-2 mt-4">
-            {Array.from({ length: Math.ceil(data.total / 20) }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => setPage(i + 1)}
-                className="w-8 h-8 rounded-lg text-xs font-medium transition-all"
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--urt-border)" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ backgroundColor: "var(--urt-paper)" }}>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Subject</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Passage</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Question</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Review Note</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--urt-ink-faint)" }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {flaggedQuestions?.map((q) => (
+              <tr
+                key={q.id}
+                className="border-t transition-colors"
                 style={{
-                  backgroundColor: page === i + 1 ? "var(--urt-accent)" : "var(--urt-border-subtle)",
-                  color: page === i + 1 ? "#fff" : "var(--urt-ink-light)",
+                  borderColor: "var(--urt-border-subtle)",
+                  backgroundColor: "var(--urt-surface)",
                 }}
               >
-                {i + 1}
-              </button>
+                <td className="px-4 py-3 font-medium capitalize" style={{ color: "var(--urt-ink)" }}>
+                  {q.subject}
+                </td>
+                <td className="px-4 py-3 max-w-[120px] truncate" style={{ color: "var(--urt-ink-light)" }}>
+                  {q.passageTitle || `Passage ${q.passageNumber + 1}`}
+                </td>
+                <td className="px-4 py-3 max-w-[300px] truncate" style={{ color: "var(--urt-ink)" }} title={q.questionText}>
+                  {q.questionText}
+                </td>
+                <td className="px-4 py-3 max-w-[200px]" style={{ color: "var(--urt-warning)" }}>
+                  <div className="text-xs bg-[var(--urt-warning)]/10 p-2 rounded-lg">
+                    {q.reviewNote || "Flagged for review"}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => {
+                      if (confirm("Mark this question as verified?")) {
+                        verifyMutation.mutate({ id: q.id });
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:bg-[var(--urt-accent)] hover:text-white"
+                    style={{ color: "var(--urt-accent)", border: "1px solid var(--urt-accent)" }}
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Verify
+                  </button>
+                </td>
+              </tr>
             ))}
-          </div>
-        )}
+            {(!flaggedQuestions || flaggedQuestions.length === 0) && (
+              <tr>
+                <td colSpan={5} className="text-center py-12" style={{ color: "var(--urt-ink-light)" }}>
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <Check className="w-12 h-12 text-[var(--urt-accent)] opacity-50" />
+                    <p>No flagged questions! The queue is clean.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -518,20 +479,6 @@ function CommentsTab() {
         </tbody>
       </table>
     </div>
-  );
-}
-
-function DifficultyBadge({ difficulty }: { difficulty: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    easy: { bg: "rgba(107,143,113,0.1)", color: "#6B8F71" },
-    medium: { bg: "rgba(212,160,58,0.1)", color: "#D4A03A" },
-    hard: { bg: "rgba(196,75,75,0.1)", color: "#C44B4B" },
-  };
-  const c = colors[difficulty] || colors.medium;
-  return (
-    <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: c.bg, color: c.color }}>
-      {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-    </span>
   );
 }
 

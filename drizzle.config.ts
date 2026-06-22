@@ -9,8 +9,9 @@ if (!connectionString) {
 export default defineConfig({
   schema: "./db/schema.ts",
   out: "./db/migrations",
-  dialect: "mysql",
+  dialect: "turso",
   dbCredentials: {
     url: connectionString,
+    authToken: process.env.DATABASE_AUTH_TOKEN,
   },
 });

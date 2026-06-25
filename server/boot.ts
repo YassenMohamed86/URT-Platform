@@ -6,7 +6,7 @@ import { appRouter } from "./router";
 import { createContext } from "./context";
 import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./oauth/auth";
-import { Paths } from "@contracts/constants";
+import { Paths } from "../contracts/constants";
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
 import { createReadStream } from "fs";

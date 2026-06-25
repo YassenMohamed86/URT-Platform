@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { uploads, comments, questions, sections, passages } from "@db/schema";
+import { uploads, comments, questions, sections, passages } from "../db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { TRPCError } from "@trpc/server";
@@ -80,7 +80,7 @@ export const adminRouter = createRouter({
       // Delete associated comments first
       await db.delete(comments).where(eq(comments.uploadId, input.id));
       // Delete votes
-      const { votes } = await import("@db/schema");
+      const { votes } = await import("../db/schema");
       await db.delete(votes).where(eq(votes.uploadId, input.id));
       // Delete upload
       await db.delete(uploads).where(eq(uploads.id, input.id));

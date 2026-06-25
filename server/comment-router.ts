@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { comments } from "@db/schema";
+import { comments } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 
 export const commentRouter = createRouter({

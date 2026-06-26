@@ -83,6 +83,58 @@ app.get("/uploads/*", async (c) => {
   }
 });
 
+app.get("/api/seed-dummy-data", async (c) => {
+  try {
+    const { getDb } = await import("./queries/connection.js");
+    const schema = await import("../db/schema.js");
+    const db = getDb();
+    
+    // Insert dummy exam
+    await db.insert(schema.exams).values({
+      id: "dummy-exam-1",
+      title: "Platform Test Exam 2024",
+      year: 2024,
+      session: "General",
+      note: "This is an automatic test exam to verify the platform is fully functional."
+    }).onConflictDoNothing();
+
+    await db.insert(schema.sections).values({
+      id: "dummy-section-1",
+      examId: "dummy-exam-1",
+      subject: "Test Subject"
+    }).onConflictDoNothing();
+
+    await db.insert(schema.passages).values({
+      id: "dummy-passage-1",
+      sectionId: "dummy-section-1",
+      title: "Welcome to the URT Platform",
+      bodyText: "If you can read this, your Turso database is successfully connected and working perfectly!",
+      orderIndex: 0
+    }).onConflictDoNothing();
+
+    await db.insert(schema.questions).values({
+      id: "dummy-q-1",
+      passageId: "dummy-passage-1",
+      number: 1,
+      text: "Is the platform database fully functional?",
+      correctAnswer: "Yes",
+      answerStatus: "verified"
+    }).onConflictDoNothing();
+
+    await db.insert(schema.choices).values([
+      { questionId: "dummy-q-1", label: "A", text: "Yes" },
+      { questionId: "dummy-q-1", label: "B", text: "No" },
+      { questionId: "dummy-q-1", label: "C", text: "Maybe" },
+      { questionId: "dummy-q-1", label: "D", text: "I don't know" }
+    ]).onConflictDoNothing();
+
+    return c.json({ success: true, message: "Database successfully seeded with test exam!" });
+  } catch (error: any) {
+    console.error(error);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",

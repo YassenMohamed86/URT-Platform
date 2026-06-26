@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "./middleware";
-import { getDb } from "./queries/connection";
-import { uploads, comments, questions, sections, passages } from "../db/schema";
+import { createRouter, publicQuery } from "./middleware.js";
+import { getDb } from "./queries/connection.js";
+import { uploads, comments, questions, sections, passages } from "../db/schema.js";
 import { eq, desc, sql } from "drizzle-orm";
-import { env } from "./lib/env";
+import { env } from "./lib/env.js";
 import { TRPCError } from "@trpc/server";
 import jwt from "jsonwebtoken";
 

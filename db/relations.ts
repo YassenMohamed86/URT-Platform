@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { exams, sections, passages, questions, choices, attempts, responses } from "./schema";
+import { exams, sections, passages, questions, choices, attempts, responses } from "./schema.js";
 
 export const examsRelations = relations(exams, ({ many }) => ({
   sections: many(sections),

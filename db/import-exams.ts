@@ -1,7 +1,7 @@
 // @ts-nocheck
 import fs from "fs";
-import { getDb } from "../server/queries/connection";
-import { exams, sections, passages, questions, choices } from "./schema";
+import { getDb } from "../server/queries/connection.js";
+import { exams, sections, passages, questions, choices } from "./schema.js";
 import { eq, and } from "drizzle-orm";
 
 async function main() {

@@ -80,7 +80,7 @@ export const adminRouter = createRouter({
       // Delete associated comments first
       await db.delete(comments).where(eq(comments.uploadId, input.id));
       // Delete votes
-      const { votes } = await import("../db/schema");
+      const { votes } = await import("../db/schema.js");
       await db.delete(votes).where(eq(votes.uploadId, input.id));
       // Delete upload
       await db.delete(uploads).where(eq(uploads.id, input.id));

@@ -98,7 +98,7 @@ export default app;
 if (env.isProduction && process.env.VERCEL !== "1" && process.env.VERCEL !== "true") {
   (async () => {
     const { serve } = await import("@hono/node-server");
-    const { serveStaticFiles } = await import("./lib/vite");
+    const { serveStaticFiles } = await import("./lib/vite.js");
     serveStaticFiles(app);
 
     const port = parseInt(process.env.PORT || "3000");

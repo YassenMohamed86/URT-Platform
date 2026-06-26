@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "drizzle-kit push && tsc -b && vite build",
+    "build": "drizzle-kit push || true && tsc -b && vite build",
     "start": "NODE_ENV=production npx tsx api/boot.ts",
     "lint": "eslint .",
     "preview": "vite preview"

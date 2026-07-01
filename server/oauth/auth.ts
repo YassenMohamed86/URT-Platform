@@ -37,14 +37,26 @@ async function exchangeAuthCode(
   return resp.json() as Promise<TokenResponse>;
 }
 
-const jwks = jose.createRemoteJWKSet(
-  new URL(`${env.authUrl}/api/.well-known/jwks.json`),
-);
+// Lazy JWKS — only created on first OAuth use.
+// At module load time, env.authUrl may be "placeholder" (unset), which makes
+// new URL(...) throw TypeError: Invalid URL and crashes the entire function.
+let _jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
+function getJwks() {
+  if (!_jwks) {
+    if (!process.env.AUTH_URL) {
+      throw new Error("AUTH_URL is not configured on this deployment");
+    }
+    _jwks = jose.createRemoteJWKSet(
+      new URL(`${env.authUrl}/api/.well-known/jwks.json`),
+    );
+  }
+  return _jwks;
+}
 
 async function verifyAccessToken(
   accessToken: string,
 ): Promise<{ userId: string; clientId: string }> {
-  const { payload } = await jose.jwtVerify(accessToken, jwks);
+  const { payload } = await jose.jwtVerify(accessToken, getJwks());
   const userId = payload.user_id as string;
   const clientId = payload.client_id as string;
   if (!userId) {

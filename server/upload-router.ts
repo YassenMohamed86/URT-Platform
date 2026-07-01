@@ -96,6 +96,32 @@ export const uploadRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
+
+      // The upload endpoint already inserted a draft row and set fileUrl.
+      // Find it by fileUrl and update it with the real metadata.
+      const existing = await db
+        .select({ id: uploads.id })
+        .from(uploads)
+        .where(eq(uploads.fileUrl, input.fileUrl))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // Update the draft row in-place — fileData and fileUrl stay intact.
+        await db
+          .update(uploads)
+          .set({
+            uploaderName: input.uploaderName,
+            title: input.title,
+            description: input.description,
+            subject: input.subject,
+            fileType: input.fileType,
+            status: "pending",
+          })
+          .where(eq(uploads.id, existing[0].id));
+        return { id: existing[0].id };
+      }
+
+      // Fallback: insert a fresh row (no fileData — used when fileUrl is external).
       const result = await db.insert(uploads).values({
         uploaderName: input.uploaderName,
         title: input.title,

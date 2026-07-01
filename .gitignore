@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.*.local
+
+# Local SQLite dev database — answer keys live here, never commit
+local.db
+local.db-shm
+local.db-wal

@@ -1,74 +1,86 @@
-# React + TypeScript + Vite
+# Anneal — URT Practice Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A free, open-source exam practice platform for Egypt NCSS STEM school students.  
+Built with **Vite + React + Hono + tRPC + Drizzle ORM + Turso (libSQL)**.  
+Deployed on **Vercel Hobby** (free, no credit card). Database on **Turso** (free, no credit card).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## One-time setup
 
-## React Compiler
+### 1. Create a Turso database
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Install the Turso CLI
+curl -sSfL https://get.tur.so/install.sh | bash
 
-## Expanding the ESLint configuration
+# Create the database
+turso db create urt-platform
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Get the connection URL
+turso db show urt-platform
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Create an auth token
+turso db tokens create urt-platform
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Push the schema
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+DATABASE_URL=libsql://... DATABASE_AUTH_TOKEN=... npm run db:push
 ```
- 
+
+### 3. Import exam data
+
+```bash
+DATABASE_URL=libsql://... DATABASE_AUTH_TOKEN=... npm run db:import
+```
+
+### 4. Set environment variables in Vercel
+
+Go to your Vercel project → Settings → Environment Variables and add:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Your Turso DB URL |
+| `DATABASE_AUTH_TOKEN` | Your Turso auth token |
+| `ADMIN_PASSWORD` | Admin panel password (you choose) |
+| `ADMIN_JWT_SECRET` | Long random string for JWT signing |
+
+Copy `.env.example` to `.env.local` for local development.
+
+### 5. Deploy
+
+Connect this repo to Vercel. Build command is `npm run build`. Done.
+
+---
+
+## Development
+
+```bash
+cp .env.example .env.local   # fill in your Turso credentials
+npm install
+npm run dev
+```
+
+## Adding new exams
+
+1. Add your exam data to `db/import-exams.ts`
+2. Run `npm run db:import`
+
+Or use the admin panel at `/admin` after setting `ADMIN_PASSWORD`.
+
+---
+
+## Architecture
+
+```
+Vercel Hobby (free)          Turso free tier (free)
+─────────────────────        ──────────────────────
+Frontend (Vite/React)   ──►  All exam data
+API (Hono serverless)   ──►  User attempts & scores
+Admin panel             ──►  Community uploads (base64 PDF)
+```
+
+No filesystem. No S3. No sleep/pause. Purely serverless.

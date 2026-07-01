@@ -87,6 +87,7 @@ export const uploads = sqliteTable("uploads", {
   subject: text("subject").notNull(),
   fileUrl: text("file_url").notNull(),
   fileType: text("file_type").notNull(),
+  fileData: text("file_data"), // base64-encoded file content — replaces ephemeral /tmp storage
   upvotes: integer("upvotes").default(0).notNull(),
   downvotes: integer("downvotes").default(0).notNull(),
   status: text("status").default("pending").notNull(),

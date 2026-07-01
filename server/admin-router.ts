@@ -9,6 +9,9 @@ import jwt from "jsonwebtoken";
 
 // Simple JWT verification middleware
 const adminProcedure = publicQuery.use(async (opts) => {
+  if (!env.adminJwtSecret) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin panel is not configured on this deployment" });
+  }
   const token = opts.ctx.req.headers.get("x-admin-token");
   if (!token) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin token required" });
@@ -25,6 +28,11 @@ export const adminRouter = createRouter({
   login: publicQuery
     .input(z.object({ password: z.string() }))
     .mutation(async ({ input }) => {
+      // Fail closed: if the deployment hasn't set real secrets, refuse every
+      // login instead of falling back to a value anyone could read in the repo.
+      if (!env.adminPassword || !env.adminJwtSecret) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Admin panel is not configured on this deployment" });
+      }
       if (input.password !== env.adminPassword) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid password" });
       }

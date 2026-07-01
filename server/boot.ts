@@ -7,17 +7,20 @@ import { createContext } from "./context.js";
 import { env } from "./lib/env.js";
 import { createOAuthCallbackHandler } from "./oauth/auth.js";
 import { Paths } from "../contracts/constants.js";
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
-import { createReadStream } from "fs";
-import { stat } from "fs/promises";
+import { getDb } from "./queries/connection.js";
+import { uploads } from "../db/schema.js";
+import { eq } from "drizzle-orm";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+// 3 MB hard cap — base64 overhead brings this to ~4 MB in the DB,
+// well under Vercel Hobby's 4.5 MB function payload limit.
+app.use(bodyLimit({ maxSize: 3 * 1024 * 1024 }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 
-// File upload endpoint
+// File upload endpoint — stores file as base64 in Turso instead of /tmp.
+// Vercel's /tmp is NOT shared between function invocations, so files
+// written there silently 404 after a cold start. DB storage persists.
 app.post("/api/upload-file", async (c) => {
   try {
     const body = await c.req.parseBody();
@@ -26,29 +29,41 @@ app.post("/api/upload-file", async (c) => {
     if (!file) {
       return c.json({ error: "No file provided" }, 400);
     }
-
     if (file.type !== "application/pdf") {
       return c.json({ error: "Only PDF files are allowed" }, 400);
     }
 
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 3 * 1024 * 1024;
     if (file.size > maxSize) {
-      return c.json({ error: "File size exceeds 10MB limit" }, 400);
+      return c.json({ error: "File size exceeds 3 MB limit" }, 400);
     }
 
-    const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
-    const uploadDir = isVercel ? "/tmp" : env.uploadDir;
-    const dateDir = new Date().toISOString().split("T")[0];
-    const targetDir = join(uploadDir, dateDir);
-    await mkdir(targetDir, { recursive: true });
-
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}.pdf`;
-    const filePath = join(targetDir, fileName);
-
     const buffer = await file.arrayBuffer();
-    await writeFile(filePath, Buffer.from(buffer));
+    const base64 = Buffer.from(buffer).toString("base64");
 
-    const fileUrl = `/uploads/${dateDir}/${fileName}`;
+    // Insert a draft row with the file data. The tRPC create mutation
+    // will update uploaderName / title / description / subject / status.
+    const db = getDb();
+    const [result] = await db
+      .insert(uploads)
+      .values({
+        uploaderName: "",
+        title: "_draft_",
+        description: "",
+        subject: "",
+        fileUrl: "",
+        fileType: "pdf",
+        fileData: base64,
+        status: "draft",
+      })
+      .returning({ id: uploads.id });
+
+    const fileUrl = `/uploads/file/${result.id}`;
+    await db
+      .update(uploads)
+      .set({ fileUrl })
+      .where(eq(uploads.id, result.id));
+
     return c.json({ fileUrl, fileType: "pdf" });
   } catch (error) {
     console.error("Upload error:", error);
@@ -56,82 +71,33 @@ app.post("/api/upload-file", async (c) => {
   }
 });
 
-// Serve uploaded files
-app.get("/uploads/*", async (c) => {
-  const path = c.req.path;
-  const isVercel = process.env.VERCEL === "1" || process.env.VERCEL === "true";
-  const uploadDir = isVercel ? "/tmp" : env.uploadDir;
-  const filePath = join(uploadDir, path.replace("/uploads/", ""));
+// Serve uploaded files from Turso — never touches the filesystem.
+app.get("/uploads/file/:id", async (c) => {
+  const id = parseInt(c.req.param("id") ?? "", 10);
+  if (isNaN(id)) return c.json({ error: "Invalid file ID" }, 400);
 
   try {
-    const fileStat = await stat(filePath);
-    if (!fileStat.isFile()) {
-      return c.json({ error: "Not found" }, 404);
+    const db = getDb();
+    const [row] = await db
+      .select({ fileData: uploads.fileData })
+      .from(uploads)
+      .where(eq(uploads.id, id))
+      .limit(1);
+
+    if (!row || !row.fileData) {
+      return c.json({ error: "File not found" }, 404);
     }
 
-    const stream = createReadStream(filePath);
-    c.header("Content-Type", "application/pdf");
-    c.header("Content-Length", fileStat.size.toString());
-    return new Response(stream as unknown as ReadableStream, {
+    const buf = Buffer.from(row.fileData, "base64");
+    return new Response(buf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Length": fileStat.size.toString(),
+        "Content-Length": buf.length.toString(),
+        "Cache-Control": "private, max-age=86400",
       },
     });
   } catch {
-    return c.json({ error: "Not found" }, 404);
-  }
-});
-
-app.get("/api/seed-dummy-data", async (c) => {
-  try {
-    const { getDb } = await import("./queries/connection.js");
-    const schema = await import("../db/schema.js");
-    const db = getDb();
-    
-    // Insert dummy exam
-    await db.insert(schema.exams).values({
-      id: "dummy-exam-1",
-      title: "Platform Test Exam 2024",
-      year: 2024,
-      session: "General",
-      note: "This is an automatic test exam to verify the platform is fully functional."
-    }).onConflictDoNothing();
-
-    await db.insert(schema.sections).values({
-      id: "dummy-section-1",
-      examId: "dummy-exam-1",
-      subject: "Test Subject"
-    }).onConflictDoNothing();
-
-    await db.insert(schema.passages).values({
-      id: "dummy-passage-1",
-      sectionId: "dummy-section-1",
-      title: "Welcome to the URT Platform",
-      bodyText: "If you can read this, your Turso database is successfully connected and working perfectly!",
-      orderIndex: 0
-    }).onConflictDoNothing();
-
-    await db.insert(schema.questions).values({
-      id: "dummy-q-1",
-      passageId: "dummy-passage-1",
-      number: 1,
-      text: "Is the platform database fully functional?",
-      correctAnswer: "Yes",
-      answerStatus: "verified"
-    }).onConflictDoNothing();
-
-    await db.insert(schema.choices).values([
-      { questionId: "dummy-q-1", label: "A", text: "Yes" },
-      { questionId: "dummy-q-1", label: "B", text: "No" },
-      { questionId: "dummy-q-1", label: "C", text: "Maybe" },
-      { questionId: "dummy-q-1", label: "D", text: "I don't know" }
-    ]).onConflictDoNothing();
-
-    return c.json({ success: true, message: "Database successfully seeded with test exam!" });
-  } catch (error: any) {
-    console.error(error);
-    return c.json({ error: error.message }, 500);
+    return c.json({ error: "File not found" }, 404);
   }
 });
 

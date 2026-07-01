@@ -1,18 +1,18 @@
 {
-  "name": "my-app",
+  "name": "urt-platform",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "drizzle-kit push || true && tsc -b && vite build",
+    "build": "tsc -b && vite build",
+    "db:push": "drizzle-kit push",
+    "db:import": "tsx db/import-exams.ts",
     "start": "NODE_ENV=production npx tsx api/boot.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1068.0",
-    "@aws-sdk/s3-request-presigner": "^3.1068.0",
     "@fontsource/dm-serif-display": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@hono/node-server": "^1.19.14",
@@ -65,7 +65,6 @@
     "jsonwebtoken": "^9.0.3",
     "libsql": "^0.5.29",
     "lucide-react": "^0.562.0",
-    "mysql2": "^3.22.5",
     "nanoid": "^5.1.11",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",

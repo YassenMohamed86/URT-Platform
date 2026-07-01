@@ -6,26 +6,15 @@ import { eq, asc } from "drizzle-orm";
 
 export const examRouter = createRouter({
   listExams: publicQuery.query(async () => {
-    try {
-      const db = getDb();
-      const dbExams = await db.select().from(exams).orderBy(asc(exams.year), asc(exams.id));
-      const allSections = await db.select().from(sections);
-      
-      return dbExams.map(e => {
-        const examSections = allSections.filter(s => s.examId === e.id);
-        const uniqueSubjects = Array.from(new Set(examSections.map(s => s.subject)));
-        return {
-          ...e,
-          subjects: uniqueSubjects
-        };
-      });
-    } catch (error: any) {
-      console.error("Database error in listExams:", error);
-      if (error.message?.includes("no such table") || error.message?.includes("LibsqlError")) {
-        return [];
-      }
-      throw error;
-    }
+    const db = getDb();
+    const dbExams = await db.select().from(exams).orderBy(asc(exams.year), asc(exams.id));
+    const allSections = await db.select().from(sections);
+
+    return dbExams.map(e => {
+      const examSections = allSections.filter(s => s.examId === e.id);
+      const uniqueSubjects = Array.from(new Set(examSections.map(s => s.subject)));
+      return { ...e, subjects: uniqueSubjects };
+    });
   }),
 
   getExamContent: publicQuery

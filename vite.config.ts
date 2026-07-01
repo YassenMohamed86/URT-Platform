@@ -46,5 +46,7 @@ export default defineConfig({
         },
       },
     },
+    // Three.js is legitimately large — silence the 500 KB chunk warning.
+    chunkSizeWarningLimit: 1000,
   },
 });

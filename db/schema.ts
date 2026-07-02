@@ -115,3 +115,37 @@ export const votes = sqliteTable("votes", {
 });
 export type Vote = typeof votes.$inferSelect;
 export type InsertVote = typeof votes.$inferInsert;
+
+// ── Practice (ACT Crack / Shahd Gaber) ──────────────────────────────────────
+// Completely separate from URT exam tables.
+// Passages have a subject tag and a source label so future question sets
+// can be added without schema changes (just a different sourceLabel value).
+
+export const practicePassages = sqliteTable("practice_passages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  subject: text("subject").notNull(),       // "Biology" | "Physics" | "Chemistry" | "Geology"
+  sourceLabel: text("source_label").notNull(), // "ACT Crack (Shahd Gaber)"
+  testCode: text("test_code"),              // "Test 6-1", "Test 7-2", …
+  bodyText: text("body_text").notNull(),
+  orderIndex: integer("order_index").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
+});
+export type PracticePassage = typeof practicePassages.$inferSelect;
+
+export const practiceQuestions = sqliteTable("practice_questions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  passageId: integer("passage_id").notNull(),
+  number: integer("number").notNull(),
+  text: text("text").notNull(),
+  correctAnswer: text("correct_answer").notNull(), // "A"–"D" or "F"–"J"
+  explanation: text("explanation"),                 // null until answers PDF is imported
+});
+export type PracticeQuestion = typeof practiceQuestions.$inferSelect;
+
+export const practiceChoices = sqliteTable("practice_choices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  questionId: integer("question_id").notNull(),
+  label: text("label").notNull(),  // "A", "B", "C", "D" / "F", "G", "H", "J"
+  text: text("text").notNull(),
+});
+export type PracticeChoice = typeof practiceChoices.$inferSelect;

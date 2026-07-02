@@ -39,11 +39,25 @@ export default function Navbar() {
 
         <div className="flex items-center gap-6">
           <Link
+            to="/practice"
+            className="text-sm transition-colors hover:text-[var(--urt-ink)]"
+            style={{ color: location.pathname.startsWith("/practice") ? "var(--urt-accent)" : "var(--urt-ink-light)" }}
+          >
+            Drill
+          </Link>
+          <Link
+            to="/exams"
+            className="text-sm transition-colors hover:text-[var(--urt-ink)]"
+            style={{ color: location.pathname.startsWith("/exam") ? "var(--urt-accent)" : "var(--urt-ink-light)" }}
+          >
+            Exams
+          </Link>
+          <Link
             to="/community"
             className="text-sm transition-colors hover:text-[var(--urt-ink)]"
             style={{ color: "var(--urt-ink-light)" }}
           >
-            Community Uploads
+            Community
           </Link>
           <button
             onClick={toggle}

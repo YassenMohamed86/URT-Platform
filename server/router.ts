@@ -4,6 +4,7 @@ import { uploadRouter } from "./upload-router.js";
 import { commentRouter } from "./comment-router.js";
 import { adminRouter } from "./admin-router.js";
 import { examRouter } from "./exam-router.js";
+import { practiceRouter } from "./practice-router.js";
 import { createRouter, publicQuery } from "./middleware.js";
 
 export const appRouter = createRouter({
@@ -14,6 +15,7 @@ export const appRouter = createRouter({
   comment: commentRouter,
   admin: adminRouter,
   exam: examRouter,
+  practice: practiceRouter,
 });
 
 export type AppRouter = typeof appRouter;

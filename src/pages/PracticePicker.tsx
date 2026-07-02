@@ -1,0 +1,167 @@
+import { useState } from "react";
+import { useNavigate } from "react-router";
+import { trpc } from "@/providers/trpc";
+import Navbar from "@/components/Navbar";
+import { FlaskConical, Leaf, Atom, Mountain, ChevronRight, BookOpen } from "lucide-react";
+
+const SUBJECTS = [
+  { name: "Biology",   icon: Leaf,        color: "#6B8F71", bg: "rgba(107,143,113,0.08)" },
+  { name: "Physics",   icon: Atom,        color: "#5B7FA6", bg: "rgba(91,127,166,0.08)"  },
+  { name: "Chemistry", icon: FlaskConical, color: "#C4843A", bg: "rgba(196,132,58,0.08)"  },
+  { name: "Geology",   icon: Mountain,    color: "#8B6F4E", bg: "rgba(139,111,78,0.08)"  },
+];
+
+export default function PracticePicker() {
+  const navigate = useNavigate();
+  const [activeSubject, setActiveSubject] = useState<string>("Biology");
+
+  const { data: subjects = [] } = trpc.practice.listSubjects.useQuery();
+
+  const { data: passages = [], isLoading } = trpc.practice.listPassages.useQuery(
+    { subject: activeSubject },
+    { enabled: !!activeSubject },
+  );
+
+  const activeMeta = SUBJECTS.find((s) => s.name === activeSubject) ?? SUBJECTS[0];
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: "var(--urt-paper)" }}>
+      <Navbar />
+
+      <div className="max-w-[960px] mx-auto px-6 pt-28 pb-20">
+        {/* Header */}
+        <div className="mb-10">
+          <p
+            className="text-xs font-semibold uppercase tracking-[0.08em] mb-3"
+            style={{ color: "var(--urt-ink-faint)" }}
+          >
+            ACT Crack · Shahd Gaber
+          </p>
+          <h1
+            className="text-4xl mb-3"
+            style={{
+              fontFamily: '"DM Serif Display", Georgia, serif',
+              color: "var(--urt-ink)",
+              lineHeight: 1.15,
+            }}
+          >
+            Subject Drill
+          </h1>
+          <p className="text-base" style={{ color: "var(--urt-ink-light)", maxWidth: 520 }}>
+            Passage-by-passage practice with instant answer feedback and explanations. No timer,
+            no pressure — just focused drilling.
+          </p>
+        </div>
+
+        {/* Subject tabs */}
+        <div className="flex gap-2 flex-wrap mb-8">
+          {SUBJECTS.map((s) => {
+            const hasData = subjects.includes(s.name);
+            const active = activeSubject === s.name;
+            return (
+              <button
+                key={s.name}
+                onClick={() => setActiveSubject(s.name)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border"
+                style={{
+                  backgroundColor: active ? s.bg : "transparent",
+                  borderColor: active ? s.color : "var(--urt-border)",
+                  color: active ? s.color : "var(--urt-ink-light)",
+                  opacity: hasData ? 1 : 0.5,
+                  cursor: hasData ? "pointer" : "default",
+                }}
+              >
+                <s.icon className="w-4 h-4" />
+                {s.name}
+                {!hasData && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: "var(--urt-border)", color: "var(--urt-ink-faint)" }}
+                  >
+                    Soon
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Passage list */}
+        {isLoading ? (
+          <div className="flex flex-col gap-3">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="h-24 rounded-2xl animate-pulse"
+                style={{ backgroundColor: "var(--urt-border)" }}
+              />
+            ))}
+          </div>
+        ) : passages.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-24 rounded-2xl border-2 border-dashed"
+            style={{ borderColor: "var(--urt-border)", color: "var(--urt-ink-faint)" }}
+          >
+            <BookOpen className="w-10 h-10 mb-4 opacity-30" />
+            <p className="text-sm font-medium">No passages yet</p>
+            <p className="text-xs mt-1 opacity-70">
+              {activeSubject} questions will appear here once imported
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {passages.map((p, i) => (
+              <button
+                key={p.id}
+                onClick={() => navigate(`/practice/session/${p.id}`)}
+                className="group w-full text-left p-5 rounded-2xl border transition-all hover:shadow-sm"
+                style={{
+                  backgroundColor: "var(--urt-surface)",
+                  borderColor: "var(--urt-border)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = activeMeta.color;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = "var(--urt-border)";
+                }}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span
+                        className="text-xs font-semibold uppercase tracking-wider"
+                        style={{ color: activeMeta.color }}
+                      >
+                        {p.testCode ?? `Passage ${i + 1}`}
+                      </span>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: activeMeta.bg,
+                          color: activeMeta.color,
+                        }}
+                      >
+                        {p.questionCount} Q
+                      </span>
+                    </div>
+                    <p
+                      className="text-sm leading-relaxed line-clamp-2"
+                      style={{ color: "var(--urt-ink-light)" }}
+                    >
+                      {p.preview}…
+                    </p>
+                  </div>
+                  <ChevronRight
+                    className="w-5 h-5 flex-shrink-0 mt-1 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: "var(--urt-ink-faint)" }}
+                  />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

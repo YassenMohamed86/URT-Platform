@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "db/schema.ts"
+      - "db/relations.ts"
+      - "db/seed.ts"
+      - "db/seed-data.json"
       - "db/import-exams.ts"
       - ".github/workflows/db-setup.yml"
   workflow_dispatch: # allow manual trigger from GitHub Actions tab

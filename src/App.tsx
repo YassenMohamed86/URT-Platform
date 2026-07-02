@@ -9,6 +9,8 @@ import Admin from "./pages/Admin";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ExamPicker from "./pages/ExamPicker";
+import PracticePicker from "./pages/PracticePicker";
+import PracticeSession from "./pages/PracticeSession";
 import FloatingTimer from "./components/FloatingTimer";
 
 export default function App() {
@@ -29,6 +31,8 @@ export default function App() {
         <Route path="/exams" element={<ExamPicker />} />
         <Route path="/exam/:type" element={<Exam />} />
         <Route path="/results" element={<Results />} />
+        <Route path="/practice" element={<PracticePicker />} />
+        <Route path="/practice/session/:passageId" element={<PracticeSession />} />
         <Route path="/community" element={<Community />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/login" element={<Login />} />

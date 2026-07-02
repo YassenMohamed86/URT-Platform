@@ -60,37 +60,32 @@ export default function Results() {
     );
   }
 
-  // Split scores for combined exams
-  const isCombined = result.examType !== "english";
-  let scoreParts: { label: string; score: number; maxScore: number; count: number; total: number }[] = [];
+  // ── Score splitting ────────────────────────────────────────────────────────
+  // Derive subjects dynamically from the questions rather than checking
+  // hardcoded examType strings like "english" / "biology_geology".
+  // Previous code divided by zero when subjects didn't match the literals,
+  // producing NaN on every real exam.
+  const SUBJECT_COLORS = ["#6B8F71", "#D4A03A", "#5B7FA6", "#C4843A"];
 
-  if (isCombined) {
-    const firstSubject = result.examType === "biology_geology" ? "biology" : "chemistry";
-    const secondSubject = result.examType === "biology_geology" ? "geology" : "physics";
+  const uniqueSubjects = Array.from(
+    new Set(result.questions.map((q) => q.subject).filter(Boolean)),
+  );
+  const isCombined = uniqueSubjects.length > 1;
 
-    const firstQuestions = result.questions.filter((q) => q.subject === firstSubject);
-    const secondQuestions = result.questions.filter((q) => q.subject === secondSubject);
-
-    const firstCorrect = firstQuestions.filter((q) => q.userAnswer === q.correctAnswer).length;
-    const secondCorrect = secondQuestions.filter((q) => q.userAnswer === q.correctAnswer).length;
-
-    scoreParts = [
-      {
-        label: firstSubject.charAt(0).toUpperCase() + firstSubject.slice(1),
-        score: Math.round((firstCorrect / firstQuestions.length) * 20 * 10) / 10,
-        maxScore: 20,
-        count: firstCorrect,
-        total: firstQuestions.length,
-      },
-      {
-        label: secondSubject.charAt(0).toUpperCase() + secondSubject.slice(1),
-        score: Math.round((secondCorrect / secondQuestions.length) * 20 * 10) / 10,
-        maxScore: 20,
-        count: secondCorrect,
-        total: secondQuestions.length,
-      },
-    ];
-  }
+  const scoreParts = uniqueSubjects.map((subj, i) => {
+    const qs = result.questions.filter((q) => q.subject === subj);
+    const correct = qs.filter((q) => q.userAnswer === q.correctAnswer).length;
+    // Each subject scored out of 20 (standard URT format); guard against /0
+    const subjMax = 20;
+    return {
+      label: subj,
+      score: qs.length > 0 ? Math.round((correct / qs.length) * subjMax * 10) / 10 : 0,
+      maxScore: subjMax,
+      count: correct,
+      total: qs.length,
+      color: SUBJECT_COLORS[i % SUBJECT_COLORS.length],
+    };
+  });
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--urt-paper)" }}>
@@ -106,14 +101,14 @@ export default function Results() {
           }}
         >
           {isCombined ? (
-            <div className="flex justify-center gap-8">
+            <div className="flex justify-center gap-8 flex-wrap">
               {scoreParts.map((part, i) => (
                 <ScoreRing
                   key={i}
                   score={part.score}
                   maxScore={part.maxScore}
                   label={part.label}
-                  color={i === 0 ? "#6B8F71" : "#D4A03A"}
+                  color={part.color}
                   size={120}
                 />
               ))}

@@ -118,27 +118,23 @@ export const adminRouter = createRouter({
 
   getAllComments: adminProcedure.query(async () => {
     const db = getDb();
-    const allComments = await db
-      .select()
+    const results = await db
+      .select({
+        id: comments.id,
+        uploadId: comments.uploadId,
+        commenterName: comments.commenterName,
+        commentText: comments.commentText,
+        createdAt: comments.createdAt,
+        uploadTitle: uploads.title,
+      })
       .from(comments)
+      .leftJoin(uploads, eq(comments.uploadId, uploads.id))
       .orderBy(desc(comments.createdAt));
 
-    // Get upload titles for each comment
-    const withTitles = await Promise.all(
-      allComments.map(async (comment) => {
-        const upload = await db
-          .select({ title: uploads.title })
-          .from(uploads)
-          .where(eq(uploads.id, comment.uploadId))
-          .limit(1);
-        return {
-          ...comment,
-          uploadTitle: upload[0]?.title ?? "Unknown",
-        };
-      })
-    );
-
-    return withTitles;
+    return results.map((r) => ({
+      ...r,
+      uploadTitle: r.uploadTitle ?? "Unknown",
+    }));
   }),
 
   deleteComment: adminProcedure

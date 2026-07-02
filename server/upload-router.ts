@@ -41,22 +41,25 @@ export const uploadRouter = createRouter({
         .where(query)
         .orderBy(orderBy);
 
-      // Get comment counts
-      const uploadsWithComments = await Promise.all(
-        result.map(async (upload) => {
-          const commentCount = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(comments)
-            .where(eq(comments.uploadId, upload.id));
+      if (result.length === 0) return [];
 
-          return {
-            ...upload,
-            commentCount: commentCount[0]?.count ?? 0,
-          };
+      // Single aggregated query instead of N+1 individual counts
+      const commentCounts = await db
+        .select({
+          uploadId: comments.uploadId,
+          count: sql<number>`count(*)`,
         })
+        .from(comments)
+        .groupBy(comments.uploadId);
+
+      const countMap = Object.fromEntries(
+        commentCounts.map((r) => [r.uploadId, r.count]),
       );
 
-      return uploadsWithComments;
+      return result.map((upload) => ({
+        ...upload,
+        commentCount: countMap[upload.id] ?? 0,
+      }));
     }),
 
   getById: publicQuery

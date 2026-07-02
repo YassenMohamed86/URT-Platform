@@ -54,8 +54,8 @@ interface ExamState {
   results: ExamResult[];
   addResult: (result: ExamResult) => void;
   clearResults: () => void;
-  currentExam: { examType: string; difficulty: string; timeLimit: number } | null;
-  setCurrentExam: (exam: { examType: string; difficulty: string; timeLimit: number } | null) => void;
+  currentExam: { examType: string; timeLimit: number } | null;
+  setCurrentExam: (exam: { examType: string; timeLimit: number } | null) => void;
 }
 
 const loadResults = (): ExamResult[] => {

@@ -138,9 +138,9 @@ export default function Exam() {
       onSuccess: (data) => {
         const rawScore = data.score;
         const totalQuestions = data.totalQuestions;
-        const maxScore = 40; // Default max score
-        const scaledScore = (rawScore / totalQuestions) * maxScore;
-        const percentage = (rawScore / totalQuestions) * 100;
+        const maxScore = 20; // Each subject scored /20 in URT format
+        const scaledScore = totalQuestions > 0 ? (rawScore / totalQuestions) * maxScore : 0;
+        const percentage = totalQuestions > 0 ? (rawScore / totalQuestions) * 100 : 0;
 
         const result = {
           examType: type || "",
@@ -157,9 +157,12 @@ export default function Exam() {
             questionText: q.questionText,
             passageText: q.passageText,
             options: q.options,
-            correctAnswer: data.feedback[q.id]?.correctAnswer || "A",
-            userAnswer: answers[q.id] || null,
-            explanation: null, // No explanations in new schema yet
+            // Don't fall back to "A" — if the server didn't return feedback for
+            // this question it means it wasn't answered; use empty string so
+            // the Results page marks it as skipped rather than wrongly correct.
+            correctAnswer: data.feedback[q.id]?.correctAnswer ?? "",
+            userAnswer: answers[q.id] ?? null,
+            explanation: null,
             subject: q.subject,
             passageNumber: q.passageNumber,
           })),

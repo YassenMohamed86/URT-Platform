@@ -18,25 +18,4 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
-        run: |
-          node --import tsx/esm -e "
-          import('./server/queries/connection.js').then(async ({ getDb }) => {
-            const { practicePassages, practiceQuestions, practiceChoices, exams, questions } = await import('./db/schema.js');
-            const db = getDb();
-            const pp = await db.select().from(practicePassages);
-            const pq = await db.select().from(practiceQuestions);
-            const pc = await db.select().from(practiceChoices);
-            const ex = await db.select().from(exams);
-            const eq = await db.select().from(questions);
-            console.log('::notice::practice_passages=' + pp.length);
-            console.log('::notice::practice_questions=' + pq.length);
-            console.log('::notice::practice_choices=' + pc.length);
-            console.log('::notice::exams=' + ex.length);
-            console.log('::notice::exam_questions=' + eq.length);
-            const withExpl = pq.filter(q => q.explanation && q.explanation.length > 0).length;
-            console.log('::notice::practice_questions_with_explanation=' + withExpl);
-            const bySubject = {};
-            pp.forEach(p => { bySubject[p.subject] = (bySubject[p.subject]||0)+1; });
-            console.log('::notice::passages_by_subject=' + JSON.stringify(bySubject));
-          });
-          "
+        run: npx tsx db/verify-counts.ts

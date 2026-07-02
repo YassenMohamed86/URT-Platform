@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "db:push": "drizzle-kit push",
     "db:import": "tsx db/seed.ts",
+    "db:seed-biology": "tsx db/seed-biology.ts",
     "start": "NODE_ENV=production npx tsx api/boot.ts",
     "lint": "eslint .",
     "preview": "vite preview"

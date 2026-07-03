@@ -17,19 +17,30 @@ jobs:
           echo "Testing $URL" > /tmp/report.txt
 
           echo "" >> /tmp/report.txt
-          echo "--- exam.listExams ---" >> /tmp/report.txt
-          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+          echo "--- exam.listExams (attempt 1, cold) ---" >> /tmp/report.txt
+          START=$(date +%s)
+          timeout 55 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1
+          END=$(date +%s)
+          echo "Wall clock: $((END-START))s" >> /tmp/report.txt
 
           echo "" >> /tmp/report.txt
-          echo "--- practice.listSubjects ---" >> /tmp/report.txt
+          echo "--- exam.listExams (attempt 2, should be warm now) ---" >> /tmp/report.txt
+          START=$(date +%s)
           timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/practice.listSubjects" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1
+          END=$(date +%s)
+          echo "Wall clock: $((END-START))s" >> /tmp/report.txt
 
           echo "" >> /tmp/report.txt
-          echo "--- practice.listPassages (Biology) ---" >> /tmp/report.txt
+          echo "--- practice.listSubjects (warm) ---" >> /tmp/report.txt
           timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+            "$URL/api/trpc/practice.listSubjects" >> /tmp/report.txt 2>&1
+
+          echo "" >> /tmp/report.txt
+          echo "--- practice.listPassages Biology (warm) ---" >> /tmp/report.txt
+          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "$URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/report.txt 2>&1
 
           cat /tmp/report.txt
 

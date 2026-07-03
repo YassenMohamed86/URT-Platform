@@ -9,9 +9,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 6
     steps:
-      - name: Test production tRPC endpoints
+      - name: Test isolation — non-tRPC route vs tRPC route
         shell: bash
         run: |
           set +e
@@ -20,43 +20,39 @@ jobs:
             echo "Testing $URL"
             echo ""
 
-            echo "--- ping (trivial, no DB) attempt 1 ---"
+            echo "--- /api/nonexistent-path (hits app.all 404 catch-all, bypasses tRPC entirely) ---"
             START=$(date +%s%N)
-            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
+            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/nonexistent-path" 2>&1)
             CODE=$?
             END=$(date +%s%N)
-            echo "curl exit code: $CODE"
-            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "curl exit code: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
             echo "output: $OUT"
             echo ""
 
-            echo "--- ping attempt 2 (should be warm) ---"
+            echo "--- /uploads/file/1 (hits boot.ts direct Hono route, no tRPC, DOES touch DB) ---"
             START=$(date +%s%N)
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
+            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/uploads/file/1" 2>&1)
             CODE=$?
             END=$(date +%s%N)
-            echo "curl exit code: $CODE"
-            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "curl exit code: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
             echo "output: $OUT"
             echo ""
 
-            echo "--- exam.listExams (DB query) ---"
+            echo "--- / (static SPA shell, known working per earlier web_fetch) ---"
             START=$(date +%s%N)
-            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1)
+            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/" 2>&1)
             CODE=$?
             END=$(date +%s%N)
-            echo "curl exit code: $CODE"
-            echo "wall clock: $(( (END-START)/1000000 ))ms"
-            echo "output: $OUT"
+            echo "curl exit code: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
+            echo "first 200 chars: ${OUT:0:200}"
             echo ""
 
-            echo "--- practice.listSubjects (DB query) ---"
+            echo "--- HEAD request to /api/trpc/ping (just headers, no body wait) ---"
             START=$(date +%s%N)
-            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1)
+            OUT=$(timeout 20 curl -s -I -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
             CODE=$?
             END=$(date +%s%N)
-            echo "curl exit code: $CODE"
-            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "curl exit code: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
             echo "output: $OUT"
           } > /tmp/report.txt 2>&1
 
@@ -68,8 +64,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 -c "
-          import json
-          body = open('/tmp/report.txt').read() if __import__('os').path.exists('/tmp/report.txt') else 'NO REPORT FILE — step itself crashed'
+          import json, os
+          body = open('/tmp/report.txt').read() if os.path.exists('/tmp/report.txt') else 'NO REPORT FILE'
           print(json.dumps({'body': body}))
           " > /tmp/payload.json
           curl -s -X POST \

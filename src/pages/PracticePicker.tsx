@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import Navbar from "@/components/Navbar";
-import { FlaskConical, Leaf, Atom, Mountain, ChevronRight, BookOpen } from "lucide-react";
+import { FlaskConical, Leaf, Atom, Mountain, ChevronRight, BookOpen, AlertTriangle } from "lucide-react";
 
 const SUBJECTS = [
   { name: "Biology",   icon: Leaf,        color: "#6B8F71", bg: "rgba(107,143,113,0.08)" },
@@ -15,14 +15,23 @@ export default function PracticePicker() {
   const navigate = useNavigate();
   const [activeSubject, setActiveSubject] = useState<string>("Biology");
 
-  const { data: subjects = [] } = trpc.practice.listSubjects.useQuery();
+  const {
+    data: subjects = [],
+    isLoading: subjectsLoading,
+    error: subjectsError,
+  } = trpc.practice.listSubjects.useQuery();
 
-  const { data: passages = [], isLoading } = trpc.practice.listPassages.useQuery(
+  const {
+    data: passages = [],
+    isLoading: passagesLoading,
+    error: passagesError,
+  } = trpc.practice.listPassages.useQuery(
     { subject: activeSubject },
     { enabled: !!activeSubject },
   );
 
   const activeMeta = SUBJECTS.find((s) => s.name === activeSubject) ?? SUBJECTS[0];
+  const anyError = subjectsError ?? passagesError;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--urt-paper)" }}>
@@ -53,6 +62,27 @@ export default function PracticePicker() {
           </p>
         </div>
 
+        {/* Connection error banner — surfaces DB/config failures instead of silently showing empty state */}
+        {anyError && (
+          <div
+            className="flex items-start gap-3 p-4 rounded-xl mb-6 border"
+            style={{
+              backgroundColor: "rgba(196,75,75,0.06)",
+              borderColor: "rgba(196,75,75,0.25)",
+            }}
+          >
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#C44B4B" }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#C44B4B" }}>
+                Couldn't load practice data
+              </p>
+              <p className="text-xs mt-1" style={{ color: "var(--urt-ink-light)" }}>
+                {anyError.message}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Subject tabs */}
         <div className="flex gap-2 flex-wrap mb-8">
           {SUBJECTS.map((s) => {
@@ -67,13 +97,13 @@ export default function PracticePicker() {
                   backgroundColor: active ? s.bg : "transparent",
                   borderColor: active ? s.color : "var(--urt-border)",
                   color: active ? s.color : "var(--urt-ink-light)",
-                  opacity: hasData ? 1 : 0.5,
+                  opacity: hasData || subjectsLoading ? 1 : 0.5,
                   cursor: hasData ? "pointer" : "default",
                 }}
               >
                 <s.icon className="w-4 h-4" />
                 {s.name}
-                {!hasData && (
+                {!subjectsLoading && !hasData && !anyError && (
                   <span
                     className="text-xs px-1.5 py-0.5 rounded"
                     style={{ backgroundColor: "var(--urt-border)", color: "var(--urt-ink-faint)" }}
@@ -87,7 +117,7 @@ export default function PracticePicker() {
         </div>
 
         {/* Passage list */}
-        {isLoading ? (
+        {passagesError ? null : passagesLoading ? (
           <div className="flex flex-col gap-3">
             {[...Array(5)].map((_, i) => (
               <div

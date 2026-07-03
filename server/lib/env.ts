@@ -9,7 +9,7 @@ export const env = {
   appId: required("APP_ID"),
   appSecret: required("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
-  databaseUrl: process.env.DATABASE_URL || "libsql://dummy.turso.io",
+  databaseUrl: process.env.DATABASE_URL ?? "",
   databaseAuthToken: process.env.DATABASE_AUTH_TOKEN ?? "",
   authUrl: required("AUTH_URL"),
   openUrl: required("OPEN_URL"),

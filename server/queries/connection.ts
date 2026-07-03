@@ -10,7 +10,15 @@ let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
 
 export function getDb() {
   if (!instance) {
-    const client = createClient({ 
+    if (!env.databaseUrl) {
+      // Fail fast and loud — a request to an unconfigured/fake host would
+      // otherwise hang on DNS resolution for 30-60+ seconds, which looks
+      // exactly like an infinite spinner on the frontend.
+      throw new Error(
+        "DATABASE_URL is not set for this deployment. Check Vercel → Settings → Environment Variables — make sure it's set for the environment (Production/Preview) this deployment is running in.",
+      );
+    }
+    const client = createClient({
       url: env.databaseUrl,
       authToken: env.databaseAuthToken || undefined,
     });

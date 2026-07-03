@@ -1,0 +1,50 @@
+name: Verify Production Endpoint
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test production tRPC endpoints
+        run: |
+          URL="https://urt-platform.vercel.app"
+          echo "Testing $URL" > /tmp/report.txt
+
+          echo "" >> /tmp/report.txt
+          echo "--- exam.listExams ---" >> /tmp/report.txt
+          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+
+          echo "" >> /tmp/report.txt
+          echo "--- practice.listSubjects ---" >> /tmp/report.txt
+          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "$URL/api/trpc/practice.listSubjects" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+
+          echo "" >> /tmp/report.txt
+          echo "--- practice.listPassages (Biology) ---" >> /tmp/report.txt
+          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "$URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/report.txt 2>&1 || echo "TIMED OUT/FAILED" >> /tmp/report.txt
+
+          cat /tmp/report.txt
+
+      - name: Post as commit comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -c "
+          import json
+          body = open('/tmp/report.txt').read()
+          print(json.dumps({'body': body}))
+          " > /tmp/payload.json
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -d @/tmp/payload.json

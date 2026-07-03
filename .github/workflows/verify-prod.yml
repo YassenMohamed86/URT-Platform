@@ -9,38 +9,56 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Test production tRPC endpoints
+        shell: bash
         run: |
+          set +e
           URL="https://urt-platform.vercel.app"
-          echo "Testing $URL" > /tmp/report.txt
+          {
+            echo "Testing $URL"
+            echo ""
 
-          echo "" >> /tmp/report.txt
-          echo "--- exam.listExams (attempt 1, cold) ---" >> /tmp/report.txt
-          START=$(date +%s)
-          timeout 55 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1
-          END=$(date +%s)
-          echo "Wall clock: $((END-START))s" >> /tmp/report.txt
+            echo "--- ping (trivial, no DB) attempt 1 ---"
+            START=$(date +%s%N)
+            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
+            CODE=$?
+            END=$(date +%s%N)
+            echo "curl exit code: $CODE"
+            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "output: $OUT"
+            echo ""
 
-          echo "" >> /tmp/report.txt
-          echo "--- exam.listExams (attempt 2, should be warm now) ---" >> /tmp/report.txt
-          START=$(date +%s)
-          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/exam.listExams" >> /tmp/report.txt 2>&1
-          END=$(date +%s)
-          echo "Wall clock: $((END-START))s" >> /tmp/report.txt
+            echo "--- ping attempt 2 (should be warm) ---"
+            START=$(date +%s%N)
+            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
+            CODE=$?
+            END=$(date +%s%N)
+            echo "curl exit code: $CODE"
+            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "output: $OUT"
+            echo ""
 
-          echo "" >> /tmp/report.txt
-          echo "--- practice.listSubjects (warm) ---" >> /tmp/report.txt
-          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/practice.listSubjects" >> /tmp/report.txt 2>&1
+            echo "--- exam.listExams (DB query) ---"
+            START=$(date +%s%N)
+            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1)
+            CODE=$?
+            END=$(date +%s%N)
+            echo "curl exit code: $CODE"
+            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "output: $OUT"
+            echo ""
 
-          echo "" >> /tmp/report.txt
-          echo "--- practice.listPassages Biology (warm) ---" >> /tmp/report.txt
-          timeout 15 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "$URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/report.txt 2>&1
+            echo "--- practice.listSubjects (DB query) ---"
+            START=$(date +%s%N)
+            OUT=$(timeout 65 curl -s -w "|||HTTP_CODE:%{http_code}|||TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1)
+            CODE=$?
+            END=$(date +%s%N)
+            echo "curl exit code: $CODE"
+            echo "wall clock: $(( (END-START)/1000000 ))ms"
+            echo "output: $OUT"
+          } > /tmp/report.txt 2>&1
 
           cat /tmp/report.txt
 
@@ -51,7 +69,7 @@ jobs:
         run: |
           python3 -c "
           import json
-          body = open('/tmp/report.txt').read()
+          body = open('/tmp/report.txt').read() if __import__('os').path.exists('/tmp/report.txt') else 'NO REPORT FILE — step itself crashed'
           print(json.dumps({'body': body}))
           " > /tmp/payload.json
           curl -s -X POST \

@@ -11,39 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Test production tRPC endpoints
+      - name: Check deployed bundle hash + test endpoints
         shell: bash
         run: |
           set +e
           URL="https://urt-platform.vercel.app"
           {
-            echo "Testing $URL"
+            echo "--- root page raw HTML (checking bundle hash / deploy freshness) ---"
+            curl -s "$URL/" 2>&1
             echo ""
-
-            echo "--- ping ---"
-            START=$(date +%s%N)
-            OUT=$(timeout 30 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
-            CODE=$?
-            END=$(date +%s%N)
-            echo "exit: $CODE, wall clock: $(( (END-START)/1000000 ))ms, output: $OUT"
+            echo "--- response headers (checking x-vercel-id / cache / deployment info) ---"
+            curl -s -I "$URL/" 2>&1
             echo ""
-
-            echo "--- exam.listExams ---"
-            START=$(date +%s%N)
-            OUT=$(timeout 30 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1)
-            CODE=$?
-            END=$(date +%s%N)
-            echo "exit: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
-            echo "output: $OUT"
-            echo ""
-
-            echo "--- practice.listSubjects ---"
-            START=$(date +%s%N)
-            OUT=$(timeout 30 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1)
-            CODE=$?
-            END=$(date +%s%N)
-            echo "exit: $CODE, wall clock: $(( (END-START)/1000000 ))ms"
-            echo "output: $OUT"
+            echo "--- api response headers only (fast, no body wait) ---"
+            timeout 10 curl -s -I -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" "$URL/api/trpc/ping" 2>&1
           } > /tmp/report.txt 2>&1
           cat /tmp/report.txt
 

@@ -11,12 +11,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: List Vercel projects
+      - name: Discover team scope
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects?limit=20" \
+            "https://api.vercel.com/v2/teams" -o /tmp/teams.json
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/teams.json'))
+          print(json.dumps(d, indent=2)[:2000])
+          " > /tmp/step0.txt
+          cat /tmp/step0.txt
+          TEAM_ID=$(python3 -c "
+          import json
+          d = json.load(open('/tmp/teams.json'))
+          teams = d.get('teams', [])
+          for t in teams:
+              if 'mizerx' in t.get('slug','').lower():
+                  print(t['id']); break
+          else:
+              if teams: print(teams[0]['id'])
+          ")
+          echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
+          echo "Resolved TEAM_ID=$TEAM_ID" >> /tmp/step0.txt
+
+      - name: List Vercel projects (team-scoped)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects?limit=20&teamId=$TEAM_ID" \
             -o /tmp/projects.json
           python3 -c "
           import json
@@ -28,11 +53,6 @@ jobs:
                   print(p['id'], '|', p['name'])
           " > /tmp/step1.txt
           cat /tmp/step1.txt
-
-      - name: Get project env vars (targets only, not values)
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
           PROJECT_ID=$(python3 -c "
           import json
           d = json.load(open('/tmp/projects.json'))
@@ -41,8 +61,13 @@ jobs:
                   print(p['id']); break
           ")
           echo "PROJECT_ID=$PROJECT_ID" >> $GITHUB_ENV
+
+      - name: Get project env var targets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
           curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/$PROJECT_ID/env" \
+            "https://api.vercel.com/v9/projects/$PROJECT_ID/env?teamId=$TEAM_ID" \
             -o /tmp/envvars.json
           python3 -c "
           import json
@@ -60,7 +85,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&limit=5&target=production" \
+            "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&teamId=$TEAM_ID&limit=5&target=production" \
             -o /tmp/deployments.json
           python3 -c "
           import json
@@ -80,18 +105,36 @@ jobs:
           ")
           echo "LATEST_URL=$LATEST_URL" >> $GITHUB_ENV
 
+      - name: Also list ALL recent deployments (any target)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&teamId=$TEAM_ID&limit=8" \
+            -o /tmp/alldeployments.json
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/alldeployments.json'))
+          if 'deployments' not in d:
+              print('ERROR:', d)
+          else:
+              for dep in d['deployments']:
+                  print(dep.get('url'), '|', dep.get('target'), '|', dep.get('state'), '|', dep.get('created'))
+          " > /tmp/step3b.txt
+          cat /tmp/step3b.txt
+
       - name: Test live tRPC endpoints directly
         run: |
           echo "Testing https://$LATEST_URL" > /tmp/step4.txt
           echo "--- exam.listExams ---" >> /tmp/step4.txt
-          timeout 20 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "https://$LATEST_URL/api/trpc/exam.listExams" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED" >> /tmp/step4.txt
+          timeout 25 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "https://$LATEST_URL/api/trpc/exam.listExams" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED (exit $?)" >> /tmp/step4.txt
           echo "--- practice.listPassages ---" >> /tmp/step4.txt
-          timeout 20 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "https://$LATEST_URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED" >> /tmp/step4.txt
-          echo "--- practice.listSubjects (control - known working) ---" >> /tmp/step4.txt
-          timeout 20 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
-            "https://$LATEST_URL/api/trpc/practice.listSubjects" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED" >> /tmp/step4.txt
+          timeout 25 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "https://$LATEST_URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED (exit $?)" >> /tmp/step4.txt
+          echo "--- practice.listSubjects (control) ---" >> /tmp/step4.txt
+          timeout 25 curl -s -w "\nHTTP_CODE:%{http_code} TIME:%{time_total}s\n" \
+            "https://$LATEST_URL/api/trpc/practice.listSubjects" >> /tmp/step4.txt 2>&1 || echo "CURL TIMED OUT OR FAILED (exit $?)" >> /tmp/step4.txt
           cat /tmp/step4.txt
 
       - name: Post all results as commit comment
@@ -100,7 +143,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           {
-            echo "## Vercel Diagnosis"
+            echo "## Vercel Diagnosis v2"
+            echo ""
+            echo "### Team discovery"
+            cat /tmp/step0.txt 2>/dev/null || echo "(failed)"
             echo ""
             echo "### Projects"
             cat /tmp/step1.txt 2>/dev/null || echo "(failed)"
@@ -108,10 +154,13 @@ jobs:
             echo "### Env var targets"
             cat /tmp/step2.txt 2>/dev/null || echo "(failed)"
             echo ""
-            echo "### Recent production deployments"
+            echo "### Recent PRODUCTION deployments"
             cat /tmp/step3.txt 2>/dev/null || echo "(failed)"
             echo ""
-            echo "### Direct endpoint test (latest deployment: $LATEST_URL)"
+            echo "### ALL recent deployments (any target)"
+            cat /tmp/step3b.txt 2>/dev/null || echo "(failed)"
+            echo ""
+            echo "### Direct endpoint test"
             cat /tmp/step4.txt 2>/dev/null || echo "(failed)"
           } > /tmp/full_report.txt
 

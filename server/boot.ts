@@ -5,8 +5,6 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router.js";
 import { createContext } from "./context.js";
 import { env } from "./lib/env.js";
-import { createOAuthCallbackHandler } from "./oauth/auth.js";
-import { Paths } from "../contracts/constants.js";
 import { getDb } from "./queries/connection.js";
 import { uploads } from "../db/schema.js";
 import { eq } from "drizzle-orm";
@@ -16,7 +14,6 @@ const app = new Hono<{ Bindings: HttpBindings }>();
 // 3 MB hard cap — base64 overhead brings this to ~4 MB in the DB,
 // well under Vercel Hobby's 4.5 MB function payload limit.
 app.use(bodyLimit({ maxSize: 3 * 1024 * 1024 }));
-app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 
 // File upload endpoint — stores file as base64 in Turso instead of /tmp.
 // Vercel's /tmp is NOT shared between function invocations, so files

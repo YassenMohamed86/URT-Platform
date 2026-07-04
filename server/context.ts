@@ -1,21 +1,16 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User } from "../db/schema.js";
-import { authenticateRequest } from "./oauth/auth.js";
 
+// No OAuth/user auth — the platform uses guest names (stored client-side)
+// for Community uploads/comments, and a separate JWT-based admin login for
+// the admin panel (handled entirely within admin-router.ts). This context
+// intentionally carries no user identity.
 export type TrpcContext = {
   req: Request;
   resHeaders: Headers;
-  user?: User;
 };
 
 export async function createContext(
   opts: FetchCreateContextFnOptions,
 ): Promise<TrpcContext> {
-  const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
-  try {
-    ctx.user = await authenticateRequest(opts.req.headers);
-  } catch {
-    // Authentication is optional here
-  }
-  return ctx;
+  return { req: opts.req, resHeaders: opts.resHeaders };
 }

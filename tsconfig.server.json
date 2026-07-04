@@ -16,9 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@contracts/*": ["./contracts/*"],
       "@db/*": ["./db/*"]
     }
   },
-  "include": ["server", "contracts", "db", "index.ts"]
+  "include": ["server", "db"]
 }

@@ -3,46 +3,25 @@ name: Verify Production Endpoint
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 5
     steps:
-      - name: Full endpoint verification
+      - name: Retest listSubjects 3x for consistency
         shell: bash
         run: |
           set +e
           URL="https://urt-platform.vercel.app"
           {
-            echo "--- ping (no DB) ---"
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/ping" 2>&1)
-            echo "$OUT"
-            echo ""
-
-            echo "--- exam.listExams (real DB query) ---"
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1)
-            echo "$OUT"
-            echo ""
-
-            echo "--- practice.listSubjects (real DB query) ---"
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1)
-            echo "$OUT"
-            echo ""
-
-            echo "--- practice.listPassages Biology (complex query: JOIN + GROUP BY) ---"
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listPassages?input=%7B%22subject%22%3A%22Biology%22%7D" 2>&1)
-            echo "${OUT:0:400}"
-            echo ""
-
-            echo "--- /uploads/file/1 (non-api Hono route via separate rewrite) ---"
-            OUT=$(timeout 20 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/uploads/file/1" 2>&1)
-            echo "$OUT"
+            for i in 1 2 3; do
+              echo "--- attempt $i ---"
+              timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1
+              echo ""
+              sleep 2
+            done
           } > /tmp/report.txt 2>&1
           cat /tmp/report.txt
-
       - name: Post as commit comment
         if: always()
         env:

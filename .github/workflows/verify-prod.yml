@@ -3,6 +3,9 @@ name: Verify Production Endpoint
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -32,6 +35,6 @@ jobs:
           body = open('/tmp/report.txt').read() if os.path.exists('/tmp/report.txt') else 'NO REPORT'
           print(json.dumps({'body': body}))
           " > /tmp/payload.json
-          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+          curl -s -w "\nCOMMENT_POST_HTTP_CODE:%{http_code}\n" -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
             -d @/tmp/payload.json

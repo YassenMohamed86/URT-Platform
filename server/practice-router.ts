@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { asc, eq, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware.js";
 import { getDb } from "./queries/connection.js";
 import {
@@ -9,50 +8,41 @@ import {
   practiceChoices,
 } from "../db/schema.js";
 
+// Every query in this file uses full-row select() (no column projection,
+// no .where(), no .orderBy(), no JOIN/GROUP BY/raw sql) with all filtering,
+// sorting, and aggregation done in JS instead. This is deliberate: live
+// testing showed queries using partial column projection or WHERE clauses
+// against these tables consistently failing with a generic wrapped
+// "Failed query" error, while plain full-table select() calls succeeded
+// every single time (matching the pattern already proven working in
+// exam-router.ts and db/verify-counts.ts). The underlying cause wasn't
+// fully diagnosable — Drizzle's error wrapper hides the real Turso/libsql
+// message — so this sidesteps it entirely rather than keep guessing at
+// which specific SQL shape is safe. Table sizes here are tiny (currently
+// 525 questions, 2100 choices total even fully populated across all four
+// subjects), so fetching full tables and filtering in memory costs nothing.
+
 export const practiceRouter = createRouter({
-  // List distinct subjects that have at least one passage.
-  // Plain select + JS-side dedup/sort instead of selectDistinct+orderBy —
-  // that combination returned a wrapped, unhelpful "Failed query" error
-  // against Turso despite matching Drizzle's own documented syntax exactly.
-  // This table is tiny (low hundreds of rows at most), so deduplicating in
-  // JS costs nothing and sidesteps the issue entirely.
   listSubjects: publicQuery.query(async () => {
     const db = getDb();
-    const rows = await db
-      .select({ subject: practicePassages.subject })
-      .from(practicePassages);
+    const rows = await db.select().from(practicePassages);
     const unique = Array.from(new Set(rows.map((r) => r.subject)));
     unique.sort();
     return unique;
   }),
 
-  // List all passages for a subject with question count and a short preview.
-  // Plain selects + JS-side aggregation instead of LEFT JOIN + GROUP BY +
-  // raw SQL functions (substr/count) — same reasoning as listSubjects above.
-  // Two simple queries on a tiny table beats one complex one of uncertain
-  // compatibility.
   listPassages: publicQuery
     .input(z.object({ subject: z.string().min(1) }))
     .query(async ({ input }) => {
       const db = getDb();
-      const passages = await db
-        .select({
-          id: practicePassages.id,
-          testCode: practicePassages.testCode,
-          sourceLabel: practicePassages.sourceLabel,
-          orderIndex: practicePassages.orderIndex,
-          bodyText: practicePassages.bodyText,
-        })
-        .from(practicePassages)
-        .where(eq(practicePassages.subject, input.subject));
+      const allPassages = await db.select().from(practicePassages);
+      const passages = allPassages.filter((p) => p.subject === input.subject);
 
       if (passages.length === 0) return [];
 
-      const passageIds = passages.map((p) => p.id);
-      const questions = await db
-        .select({ id: practiceQuestions.id, passageId: practiceQuestions.passageId })
-        .from(practiceQuestions)
-        .where(inArray(practiceQuestions.passageId, passageIds));
+      const passageIds = new Set(passages.map((p) => p.id));
+      const allQuestions = await db.select().from(practiceQuestions);
+      const questions = allQuestions.filter((q) => passageIds.has(q.passageId));
 
       const countByPassage = new Map<number, number>();
       for (const q of questions) {
@@ -76,38 +66,21 @@ export const practiceRouter = createRouter({
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = getDb();
-      const [passage] = await db
-        .select()
-        .from(practicePassages)
-        .where(eq(practicePassages.id, input.id))
-        .limit(1);
+      const allPassages = await db.select().from(practicePassages);
+      const passage = allPassages.find((p) => p.id === input.id);
 
       if (!passage) throw new TRPCError({ code: "NOT_FOUND", message: "Passage not found" });
 
-      const qs = await db
-        .select({
-          id: practiceQuestions.id,
-          number: practiceQuestions.number,
-          text: practiceQuestions.text,
-          explanation: practiceQuestions.explanation,
-        })
-        .from(practiceQuestions)
-        .where(eq(practiceQuestions.passageId, passage.id))
-        .orderBy(asc(practiceQuestions.number));
+      const allQuestions = await db.select().from(practiceQuestions);
+      const qs = allQuestions
+        .filter((q) => q.passageId === passage.id)
+        .sort((a, b) => a.number - b.number);
 
-      const allChoices =
-        qs.length > 0
-          ? await db
-              .select()
-              .from(practiceChoices)
-              .where(
-                inArray(
-                  practiceChoices.questionId,
-                  qs.map((q) => q.id),
-                ),
-              )
-              .orderBy(asc(practiceChoices.label))
-          : [];
+      const questionIds = new Set(qs.map((q) => q.id));
+      const allChoices = await db.select().from(practiceChoices);
+      const relevantChoices = allChoices
+        .filter((c) => questionIds.has(c.questionId))
+        .sort((a, b) => a.label.localeCompare(b.label));
 
       return {
         id: passage.id,
@@ -120,7 +93,7 @@ export const practiceRouter = createRouter({
           number: q.number,
           text: q.text,
           hasExplanation: q.explanation !== null && q.explanation !== "",
-          choices: allChoices.filter((c) => c.questionId === q.id),
+          choices: relevantChoices.filter((c) => c.questionId === q.id),
         })),
       };
     }),
@@ -136,14 +109,8 @@ export const practiceRouter = createRouter({
     )
     .mutation(async ({ input }) => {
       const db = getDb();
-      const [q] = await db
-        .select({
-          correctAnswer: practiceQuestions.correctAnswer,
-          explanation: practiceQuestions.explanation,
-        })
-        .from(practiceQuestions)
-        .where(eq(practiceQuestions.id, input.questionId))
-        .limit(1);
+      const allQuestions = await db.select().from(practiceQuestions);
+      const q = allQuestions.find((row) => row.id === input.questionId);
 
       if (!q) throw new TRPCError({ code: "NOT_FOUND", message: "Question not found" });
 

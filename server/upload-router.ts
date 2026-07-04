@@ -2,7 +2,12 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware.js";
 import { getDb } from "./queries/connection.js";
 import { uploads, comments, votes } from "../db/schema.js";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+
+// All reads use full-table select() + JS filtering/sorting, not WHERE/JOIN/
+// GROUP BY — see practice-router.ts and exam-router.ts for why. Writes
+// (insert/update/delete keyed on a primary key id) are left as direct
+// Drizzle calls since those have a proven track record of working.
 
 export const uploadRouter = createRouter({
   list: publicQuery
@@ -10,55 +15,38 @@ export const uploadRouter = createRouter({
       z.object({
         subject: z.string().optional(),
         sortBy: z.enum(["upvotes", "newest", "discussed"]).default("upvotes"),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = getDb();
       const { subject, sortBy } = input;
 
-      const conditions = [eq(uploads.status, "approved")];
+      const allUploads = await db.select().from(uploads);
+      let result = allUploads.filter((u) => u.status === "approved");
       if (subject && subject !== "all") {
-        conditions.push(eq(uploads.subject, subject));
+        result = result.filter((u) => u.subject === subject);
       }
 
-      const query = and(...conditions);
-
-      let orderBy;
-      switch (sortBy) {
-        case "newest":
-          orderBy = desc(uploads.createdAt);
-          break;
-        case "discussed":
-          orderBy = desc(uploads.upvotes);
-          break;
-        default:
-          orderBy = desc(uploads.upvotes);
+      if (sortBy === "newest") {
+        result = result.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+      } else {
+        // "upvotes" and "discussed" both sort by upvotes for now
+        result = result.sort((a, b) => b.upvotes - a.upvotes);
       }
-
-      const result = await db
-        .select()
-        .from(uploads)
-        .where(query)
-        .orderBy(orderBy);
 
       if (result.length === 0) return [];
 
-      // Single aggregated query instead of N+1 individual counts
-      const commentCounts = await db
-        .select({
-          uploadId: comments.uploadId,
-          count: sql<number>`count(*)`,
-        })
-        .from(comments)
-        .groupBy(comments.uploadId);
-
-      const countMap = Object.fromEntries(
-        commentCounts.map((r) => [r.uploadId, r.count]),
-      );
+      const allComments = await db.select().from(comments);
+      const countMap = new Map<number, number>();
+      for (const c of allComments) {
+        countMap.set(c.uploadId, (countMap.get(c.uploadId) ?? 0) + 1);
+      }
 
       return result.map((upload) => ({
         ...upload,
-        commentCount: countMap[upload.id] ?? 0,
+        commentCount: countMap.get(upload.id) ?? 0,
       }));
     }),
 
@@ -66,24 +54,18 @@ export const uploadRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = getDb();
-      const upload = await db
-        .select()
-        .from(uploads)
-        .where(and(eq(uploads.id, input.id), eq(uploads.status, "approved")))
-        .limit(1);
+      const allUploads = await db.select().from(uploads);
+      const upload = allUploads.find(
+        (u) => u.id === input.id && u.status === "approved",
+      );
+      if (!upload) return null;
 
-      if (upload.length === 0) return null;
+      const allComments = await db.select().from(comments);
+      const uploadComments = allComments
+        .filter((c) => c.uploadId === input.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      const uploadComments = await db
-        .select()
-        .from(comments)
-        .where(eq(comments.uploadId, input.id))
-        .orderBy(desc(comments.createdAt));
-
-      return {
-        ...upload[0],
-        comments: uploadComments,
-      };
+      return { ...upload, comments: uploadComments };
     }),
 
   create: publicQuery
@@ -95,20 +77,17 @@ export const uploadRouter = createRouter({
         subject: z.string(),
         fileUrl: z.string(),
         fileType: z.string(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = getDb();
 
       // The upload endpoint already inserted a draft row and set fileUrl.
       // Find it by fileUrl and update it with the real metadata.
-      const existing = await db
-        .select({ id: uploads.id })
-        .from(uploads)
-        .where(eq(uploads.fileUrl, input.fileUrl))
-        .limit(1);
+      const allUploads = await db.select().from(uploads);
+      const existing = allUploads.find((u) => u.fileUrl === input.fileUrl);
 
-      if (existing.length > 0) {
+      if (existing) {
         // Update the draft row in-place — fileData and fileUrl stay intact.
         await db
           .update(uploads)
@@ -120,8 +99,8 @@ export const uploadRouter = createRouter({
             fileType: input.fileType,
             status: "pending",
           })
-          .where(eq(uploads.id, existing[0].id));
-        return { id: existing[0].id };
+          .where(eq(uploads.id, existing.id));
+        return { id: existing.id };
       }
 
       // Fallback: insert a fresh row (no fileData — used when fileUrl is external).
@@ -143,29 +122,24 @@ export const uploadRouter = createRouter({
         uploadId: z.number(),
         sessionId: z.string(),
         voteType: z.enum(["up", "down"]),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = getDb();
       const { uploadId, sessionId, voteType } = input;
 
-      // Check existing vote
-      const existing = await db
-        .select()
-        .from(votes)
-        .where(and(eq(votes.uploadId, uploadId), eq(votes.sessionId, sessionId)))
-        .limit(1);
+      const allVotesForUpload = await db.select().from(votes);
+      const existing = allVotesForUpload.find(
+        (v) => v.uploadId === uploadId && v.sessionId === sessionId,
+      );
 
-      if (existing.length > 0) {
-        if (existing[0].voteType === voteType) {
+      if (existing) {
+        if (existing.voteType === voteType) {
           // Remove vote (toggle off)
-          await db.delete(votes).where(eq(votes.id, existing[0].id));
+          await db.delete(votes).where(eq(votes.id, existing.id));
         } else {
           // Update vote
-          await db
-            .update(votes)
-            .set({ voteType })
-            .where(eq(votes.id, existing[0].id));
+          await db.update(votes).set({ voteType }).where(eq(votes.id, existing.id));
         }
       } else {
         // Create new vote
@@ -173,21 +147,15 @@ export const uploadRouter = createRouter({
       }
 
       // Recalculate counts
-      const allVotes = await db
-        .select()
-        .from(votes)
-        .where(eq(votes.uploadId, uploadId));
+      const allVotes = await db.select().from(votes);
+      const relevantVotes = allVotes.filter((v) => v.uploadId === uploadId);
 
-      const upvotes = allVotes.filter((v) => v.voteType === "up").length;
-      const downvotes = allVotes.filter((v) => v.voteType === "down").length;
+      const upvotes = relevantVotes.filter((v) => v.voteType === "up").length;
+      const downvotes = relevantVotes.filter((v) => v.voteType === "down").length;
 
-      await db
-        .update(uploads)
-        .set({ upvotes, downvotes })
-        .where(eq(uploads.id, uploadId));
+      await db.update(uploads).set({ upvotes, downvotes }).where(eq(uploads.id, uploadId));
 
-      const userVote =
-        allVotes.find((v) => v.sessionId === sessionId)?.voteType ?? null;
+      const userVote = relevantVotes.find((v) => v.sessionId === sessionId)?.voteType ?? null;
 
       return { upvotes, downvotes, userVote };
     }),
@@ -197,21 +165,18 @@ export const uploadRouter = createRouter({
       z.object({
         uploadId: z.number(),
         sessionId: z.string(),
-      })
+      }),
     )
     .query(async ({ input }) => {
       const db = getDb();
       const { uploadId, sessionId } = input;
 
-      const allVotes = await db
-        .select()
-        .from(votes)
-        .where(eq(votes.uploadId, uploadId));
+      const allVotes = await db.select().from(votes);
+      const relevantVotes = allVotes.filter((v) => v.uploadId === uploadId);
 
-      const upvotes = allVotes.filter((v) => v.voteType === "up").length;
-      const downvotes = allVotes.filter((v) => v.voteType === "down").length;
-      const userVote =
-        allVotes.find((v) => v.sessionId === sessionId)?.voteType ?? null;
+      const upvotes = relevantVotes.filter((v) => v.voteType === "up").length;
+      const downvotes = relevantVotes.filter((v) => v.voteType === "down").length;
+      const userVote = relevantVotes.find((v) => v.sessionId === sessionId)?.voteType ?? null;
 
       return { upvotes, downvotes, userVote };
     }),

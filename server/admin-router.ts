@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware.js";
 import { getDb } from "./queries/connection.js";
-import { uploads, comments, questions, sections, passages } from "../db/schema.js";
-import { eq, desc, sql } from "drizzle-orm";
+import { uploads, comments, votes, questions, sections, passages } from "../db/schema.js";
+import { eq } from "drizzle-orm";
 import { env } from "./lib/env.js";
 import { TRPCError } from "@trpc/server";
 import jwt from "jsonwebtoken";
@@ -24,6 +24,12 @@ const adminProcedure = publicQuery.use(async (opts) => {
   }
 });
 
+// All reads below use full-table select() + JS filtering/sorting, not
+// WHERE/JOIN/GROUP BY/count(*) — see practice-router.ts and exam-router.ts
+// for why. Writes (insert/update/delete keyed on a primary key id) are
+// left as direct Drizzle calls since those have a proven track record of
+// working correctly against this database.
+
 export const adminRouter = createRouter({
   login: publicQuery
     .input(z.object({ password: z.string() }))
@@ -44,29 +50,25 @@ export const adminRouter = createRouter({
 
   getPendingUploads: adminProcedure.query(async () => {
     const db = getDb();
-    return db
-      .select()
-      .from(uploads)
-      .where(eq(uploads.status, "pending"))
-      .orderBy(desc(uploads.createdAt));
+    const allUploads = await db.select().from(uploads);
+    return allUploads
+      .filter((u) => u.status === "pending")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }),
 
   getAllUploads: adminProcedure.query(async () => {
     const db = getDb();
-    return db
-      .select()
-      .from(uploads)
-      .orderBy(desc(uploads.createdAt));
+    const allUploads = await db.select().from(uploads);
+    return allUploads.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }),
 
   approveUpload: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      await db
-        .update(uploads)
-        .set({ status: "approved" })
-        .where(eq(uploads.id, input.id));
+      await db.update(uploads).set({ status: "approved" }).where(eq(uploads.id, input.id));
       return { success: true };
     }),
 
@@ -74,10 +76,7 @@ export const adminRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      await db
-        .update(uploads)
-        .set({ status: "rejected" })
-        .where(eq(uploads.id, input.id));
+      await db.update(uploads).set({ status: "rejected" }).where(eq(uploads.id, input.id));
       return { success: true };
     }),
 
@@ -85,12 +84,8 @@ export const adminRouter = createRouter({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      // Delete associated comments first
       await db.delete(comments).where(eq(comments.uploadId, input.id));
-      // Delete votes
-      const { votes } = await import("../db/schema.js");
       await db.delete(votes).where(eq(votes.uploadId, input.id));
-      // Delete upload
       await db.delete(uploads).where(eq(uploads.id, input.id));
       return { success: true };
     }),
@@ -102,7 +97,7 @@ export const adminRouter = createRouter({
         title: z.string().optional(),
         description: z.string().optional(),
         subject: z.string().optional(),
-      })
+      }),
     )
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -118,23 +113,20 @@ export const adminRouter = createRouter({
 
   getAllComments: adminProcedure.query(async () => {
     const db = getDb();
-    const results = await db
-      .select({
-        id: comments.id,
-        uploadId: comments.uploadId,
-        commenterName: comments.commenterName,
-        commentText: comments.commentText,
-        createdAt: comments.createdAt,
-        uploadTitle: uploads.title,
-      })
-      .from(comments)
-      .leftJoin(uploads, eq(comments.uploadId, uploads.id))
-      .orderBy(desc(comments.createdAt));
+    const allComments = await db.select().from(comments);
+    const allUploads = await db.select().from(uploads);
+    const titleById = new Map(allUploads.map((u) => [u.id, u.title]));
 
-    return results.map((r) => ({
-      ...r,
-      uploadTitle: r.uploadTitle ?? "Unknown",
-    }));
+    return allComments
+      .map((c) => ({
+        id: c.id,
+        uploadId: c.uploadId,
+        commenterName: c.commenterName,
+        commentText: c.commentText,
+        createdAt: c.createdAt,
+        uploadTitle: titleById.get(c.uploadId) ?? "Unknown",
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }),
 
   deleteComment: adminProcedure
@@ -147,56 +139,53 @@ export const adminRouter = createRouter({
 
   getFlaggedQuestions: adminProcedure.query(async () => {
     const db = getDb();
-    const flagged = await db
-      .select({
-        id: questions.id,
-        passageTitle: passages.title,
-        passageNumber: passages.orderIndex,
-        questionText: questions.text,
-        reviewNote: questions.reviewNote,
-        subject: sections.subject,
+    const allQuestions = await db.select().from(questions);
+    const flagged = allQuestions.filter((q) => q.answerStatus === "flagged");
+    if (flagged.length === 0) return [];
+
+    const allPassages = await db.select().from(passages);
+    const allSections = await db.select().from(sections);
+    const passageById = new Map(allPassages.map((p) => [p.id, p]));
+    const sectionById = new Map(allSections.map((s) => [s.id, s]));
+
+    return flagged
+      .map((q) => {
+        const passage = passageById.get(q.passageId);
+        const section = passage ? sectionById.get(passage.sectionId) : undefined;
+        if (!passage || !section) return null; // orphaned row — innerJoin would have excluded it too
+        return {
+          id: q.id,
+          passageTitle: passage.title,
+          passageNumber: passage.orderIndex,
+          questionText: q.text,
+          reviewNote: q.reviewNote,
+          subject: section.subject,
+        };
       })
-      .from(questions)
-      .innerJoin(passages, eq(questions.passageId, passages.id))
-      .innerJoin(sections, eq(passages.sectionId, sections.id))
-      .where(eq(questions.answerStatus, "flagged"))
-      .orderBy(desc(questions.id));
-    return flagged;
+      .filter((q): q is NonNullable<typeof q> => q !== null)
+      .sort((a, b) => b.id - a.id);
   }),
 
   verifyQuestion: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      await db
-        .update(questions)
-        .set({ answerStatus: "verified" })
-        .where(eq(questions.id, input.id));
+      await db.update(questions).set({ answerStatus: "verified" }).where(eq(questions.id, input.id));
       return { success: true };
     }),
 
   getStats: adminProcedure.query(async () => {
     const db = getDb();
 
-    const totalQuestions = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(questions);
-    const totalUploads = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(uploads);
-    const pendingUploads = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(uploads)
-      .where(eq(uploads.status, "pending"));
-    const totalComments = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(comments);
+    const allQuestions = await db.select().from(questions);
+    const allUploads = await db.select().from(uploads);
+    const allComments = await db.select().from(comments);
 
     return {
-      totalQuestions: totalQuestions[0]?.count ?? 0,
-      totalUploads: totalUploads[0]?.count ?? 0,
-      pendingUploads: pendingUploads[0]?.count ?? 0,
-      totalComments: totalComments[0]?.count ?? 0,
+      totalQuestions: allQuestions.length,
+      totalUploads: allUploads.length,
+      pendingUploads: allUploads.filter((u) => u.status === "pending").length,
+      totalComments: allComments.length,
     };
   }),
 });

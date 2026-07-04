@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, publicQuery } from "./middleware.js";
 import { getDb } from "./queries/connection.js";
 import { comments } from "../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export const commentRouter = createRouter({
   create: publicQuery
@@ -23,11 +23,10 @@ export const commentRouter = createRouter({
     .input(z.object({ uploadId: z.number() }))
     .query(async ({ input }) => {
       const db = getDb();
-      return db
-        .select()
-        .from(comments)
-        .where(eq(comments.uploadId, input.uploadId))
-        .orderBy(desc(comments.createdAt));
+      const allComments = await db.select().from(comments);
+      return allComments
+        .filter((c) => c.uploadId === input.uploadId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }),
 
   delete: publicQuery

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { createRouter, publicQuery } from "./middleware.js";
 import { getDb } from "./queries/connection.js";
 import {
@@ -10,39 +10,65 @@ import {
 } from "../db/schema.js";
 
 export const practiceRouter = createRouter({
-  // List distinct subjects that have at least one passage
+  // List distinct subjects that have at least one passage.
+  // Plain select + JS-side dedup/sort instead of selectDistinct+orderBy —
+  // that combination returned a wrapped, unhelpful "Failed query" error
+  // against Turso despite matching Drizzle's own documented syntax exactly.
+  // This table is tiny (low hundreds of rows at most), so deduplicating in
+  // JS costs nothing and sidesteps the issue entirely.
   listSubjects: publicQuery.query(async () => {
     const db = getDb();
     const rows = await db
-      .selectDistinct({ subject: practicePassages.subject })
-      .from(practicePassages)
-      .orderBy(asc(practicePassages.subject));
-    return rows.map((r) => r.subject);
+      .select({ subject: practicePassages.subject })
+      .from(practicePassages);
+    const unique = Array.from(new Set(rows.map((r) => r.subject)));
+    unique.sort();
+    return unique;
   }),
 
-  // List all passages for a subject with question count and a short preview
+  // List all passages for a subject with question count and a short preview.
+  // Plain selects + JS-side aggregation instead of LEFT JOIN + GROUP BY +
+  // raw SQL functions (substr/count) — same reasoning as listSubjects above.
+  // Two simple queries on a tiny table beats one complex one of uncertain
+  // compatibility.
   listPassages: publicQuery
     .input(z.object({ subject: z.string().min(1) }))
     .query(async ({ input }) => {
       const db = getDb();
-      const rows = await db
+      const passages = await db
         .select({
           id: practicePassages.id,
           testCode: practicePassages.testCode,
           sourceLabel: practicePassages.sourceLabel,
           orderIndex: practicePassages.orderIndex,
-          preview: sql<string>`substr(${practicePassages.bodyText}, 1, 180)`,
-          questionCount: sql<number>`count(${practiceQuestions.id})`,
+          bodyText: practicePassages.bodyText,
         })
         .from(practicePassages)
-        .leftJoin(
-          practiceQuestions,
-          eq(practiceQuestions.passageId, practicePassages.id),
-        )
-        .where(eq(practicePassages.subject, input.subject))
-        .groupBy(practicePassages.id)
-        .orderBy(asc(practicePassages.orderIndex));
-      return rows;
+        .where(eq(practicePassages.subject, input.subject));
+
+      if (passages.length === 0) return [];
+
+      const passageIds = passages.map((p) => p.id);
+      const questions = await db
+        .select({ id: practiceQuestions.id, passageId: practiceQuestions.passageId })
+        .from(practiceQuestions)
+        .where(inArray(practiceQuestions.passageId, passageIds));
+
+      const countByPassage = new Map<number, number>();
+      for (const q of questions) {
+        countByPassage.set(q.passageId, (countByPassage.get(q.passageId) ?? 0) + 1);
+      }
+
+      return passages
+        .map((p) => ({
+          id: p.id,
+          testCode: p.testCode,
+          sourceLabel: p.sourceLabel,
+          orderIndex: p.orderIndex,
+          preview: p.bodyText.slice(0, 180),
+          questionCount: countByPassage.get(p.id) ?? 0,
+        }))
+        .sort((a, b) => a.orderIndex - b.orderIndex);
     }),
 
   // Full passage + questions + choices — correctAnswer intentionally excluded
@@ -63,7 +89,7 @@ export const practiceRouter = createRouter({
           id: practiceQuestions.id,
           number: practiceQuestions.number,
           text: practiceQuestions.text,
-          hasExplanation: sql<number>`case when ${practiceQuestions.explanation} is not null then 1 else 0 end`,
+          explanation: practiceQuestions.explanation,
         })
         .from(practiceQuestions)
         .where(eq(practiceQuestions.passageId, passage.id))
@@ -93,7 +119,7 @@ export const practiceRouter = createRouter({
           id: q.id,
           number: q.number,
           text: q.text,
-          hasExplanation: q.hasExplanation === 1,
+          hasExplanation: q.explanation !== null && q.explanation !== "",
           choices: allChoices.filter((c) => c.questionId === q.id),
         })),
       };

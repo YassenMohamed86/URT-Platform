@@ -7,9 +7,10 @@ import * as relations from "../../db/relations.js";
 const fullSchema = { ...schema, ...relations };
 
 let instance: ReturnType<typeof drizzle<typeof fullSchema>>;
+let rawClient: ReturnType<typeof createClient>;
 
-export function getDb() {
-  if (!instance) {
+function ensureClient() {
+  if (!rawClient) {
     if (!env.databaseUrl) {
       // Fail fast and loud — a request to an unconfigured/fake host would
       // otherwise hang on DNS resolution for 30-60+ seconds, which looks
@@ -18,13 +19,25 @@ export function getDb() {
         "DATABASE_URL is not set for this deployment. Check Vercel → Settings → Environment Variables — make sure it's set for the environment (Production/Preview) this deployment is running in.",
       );
     }
-    const client = createClient({
+    rawClient = createClient({
       url: env.databaseUrl,
       authToken: env.databaseAuthToken || undefined,
     });
+  }
+  return rawClient;
+}
+
+export function getDb() {
+  if (!instance) {
+    const client = ensureClient();
     instance = drizzle(client, {
       schema: fullSchema,
     });
   }
   return instance;
+}
+
+// TEMPORARY diagnostic export — bypasses Drizzle entirely for raw SQL testing
+export function getRawClient() {
+  return ensureClient();
 }

@@ -11,24 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Test with cache-busting + check response headers
+      - name: Test the transport fix
         shell: bash
         run: |
           set +e
           URL="https://urt-platform.vercel.app"
-          TS=$(date +%s%N)
           {
-            echo "--- practice.listSubjects with cache-buster (_cb=$TS) ---"
-            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects?_cb=$TS" 2>&1
+            echo "--- practice.listSubjects (the one that's been failing) ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1
             echo ""; echo ""
 
-            echo "--- response headers only (checking for x-vercel-cache) ---"
-            timeout 15 curl -s -I "$URL/api/trpc/practice.listSubjects?_cb=$TS-b" 2>&1
-            echo ""
+            echo "--- upload.list (also been failing) ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/upload.list?input=%7B%22json%22%3A%20%7B%7D%7D" 2>&1
+            echo ""; echo ""
 
-            echo "--- POST instead of GET (tRPC also accepts POST for queries in some configs) ---"
-            timeout 15 curl -s -X POST -H "Content-Type: application/json" -w "|||HTTP_CODE:%{http_code}" \
-              -d '{}' "$URL/api/trpc/practice.listSubjects" 2>&1
+            echo "--- exam.listExams (control - was already working) ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1 | head -c 200
+            echo ""
           } > /tmp/report.txt 2>&1
           cat /tmp/report.txt
 

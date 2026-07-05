@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Full verification with corrected input encoding
+      - name: Comprehensive endpoint verification
         shell: bash
         run: |
           set +e
@@ -22,15 +22,23 @@ jobs:
             echo ""; echo ""
 
             echo "--- exam.listExams ---"
-            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1 | head -c 300
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.listExams" 2>&1 | head -c 250
             echo ""; echo ""
 
-            echo "--- practice.listSubjects (fixed version) ---"
+            echo "--- exam.getExamContent (stem-2016-s1) ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/exam.getExamContent?input=%7B%22json%22%3A%20%7B%22examId%22%3A%20%22stem-2016-s1%22%7D%7D" 2>&1 | head -c 400
+            echo ""; echo ""
+
+            echo "--- practice.listSubjects ---"
             timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects" 2>&1
             echo ""; echo ""
 
-            echo "--- practice.listPassages Biology (fixed version + correct superjson input encoding) ---"
-            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listPassages?input=%7B%22json%22%3A%20%7B%22subject%22%3A%20%22Biology%22%7D%7D" 2>&1 | head -c 500
+            echo "--- practice.listPassages Biology ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listPassages?input=%7B%22json%22%3A%20%7B%22subject%22%3A%20%22Biology%22%7D%7D" 2>&1 | head -c 400
+            echo ""; echo ""
+
+            echo "--- upload.list ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/upload.list?input=%7B%22json%22%3A%20%7B%7D%7D" 2>&1
             echo ""
           } > /tmp/report.txt 2>&1
           cat /tmp/report.txt

@@ -11,20 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-      - run: npm ci
-      - name: Run verify-counts.ts DIRECTLY (bypassing Vercel entirely)
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
-        run: npx tsx db/verify-counts.ts > /tmp/report.txt 2>&1 || echo "SCRIPT FAILED, exit $?" >> /tmp/report.txt
-      - name: Show report
-        if: always()
-        run: cat /tmp/report.txt
+      - name: Test with cache-busting + check response headers
+        shell: bash
+        run: |
+          set +e
+          URL="https://urt-platform.vercel.app"
+          TS=$(date +%s%N)
+          {
+            echo "--- practice.listSubjects with cache-buster (_cb=$TS) ---"
+            timeout 15 curl -s -w "|||HTTP_CODE:%{http_code} TIME:%{time_total}s" "$URL/api/trpc/practice.listSubjects?_cb=$TS" 2>&1
+            echo ""; echo ""
+
+            echo "--- response headers only (checking for x-vercel-cache) ---"
+            timeout 15 curl -s -I "$URL/api/trpc/practice.listSubjects?_cb=$TS-b" 2>&1
+            echo ""
+
+            echo "--- POST instead of GET (tRPC also accepts POST for queries in some configs) ---"
+            timeout 15 curl -s -X POST -H "Content-Type: application/json" -w "|||HTTP_CODE:%{http_code}" \
+              -d '{}' "$URL/api/trpc/practice.listSubjects" 2>&1
+          } > /tmp/report.txt 2>&1
+          cat /tmp/report.txt
+
       - name: Post as commit comment
         if: always()
         env:
@@ -33,7 +40,7 @@ jobs:
           python3 -c "
           import json, os
           body = open('/tmp/report.txt').read() if os.path.exists('/tmp/report.txt') else 'NO REPORT'
-          print(json.dumps({'body': 'DIRECT (non-Vercel) query test:\n\n' + body}))
+          print(json.dumps({'body': body}))
           " > /tmp/payload.json
           curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \

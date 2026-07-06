@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import Navbar from "@/components/Navbar";
-import { FlaskConical, Leaf, Atom, Mountain, ChevronRight, BookOpen, AlertTriangle } from "lucide-react";
+import { getCompletedPassageIds } from "@/lib/practiceProgress";
+import { FlaskConical, Leaf, Atom, Mountain, ChevronRight, BookOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const SUBJECTS = [
   { name: "Biology",   icon: Leaf,        color: "#6B8F71", bg: "rgba(107,143,113,0.08)" },
@@ -14,6 +15,16 @@ const SUBJECTS = [
 export default function PracticePicker() {
   const navigate = useNavigate();
   const [activeSubject, setActiveSubject] = useState<string>("Biology");
+  const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
+
+  // Refresh completion state whenever this page is shown (e.g. navigating
+  // back here after finishing a passage) so checkmarks stay current.
+  useEffect(() => {
+    setCompletedIds(getCompletedPassageIds());
+    const onFocus = () => setCompletedIds(getCompletedPassageIds());
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   const {
     data: subjects = [],
@@ -182,10 +193,15 @@ export default function PracticePicker() {
                       {p.preview}…
                     </p>
                   </div>
-                  <ChevronRight
-                    className="w-5 h-5 flex-shrink-0 mt-1 transition-transform group-hover:translate-x-0.5"
-                    style={{ color: "var(--urt-ink-faint)" }}
-                  />
+                  <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                    {completedIds.has(p.id) && (
+                      <CheckCircle2 className="w-5 h-5" style={{ color: "#6B8F71" }} />
+                    )}
+                    <ChevronRight
+                      className="w-5 h-5 transition-transform group-hover:translate-x-0.5"
+                      style={{ color: "var(--urt-ink-faint)" }}
+                    />
+                  </div>
                 </div>
               </button>
             ))}

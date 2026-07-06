@@ -36,8 +36,3 @@ export function getDb() {
   }
   return instance;
 }
-
-// TEMPORARY diagnostic export — bypasses Drizzle entirely for raw SQL testing
-export function getRawClient() {
-  return ensureClient();
-}

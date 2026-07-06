@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { exams, sections, passages, questions, choices, attempts, responses, practicePassages, practiceQuestions, practiceChoices } from "./schema.js";
+import { exams, sections, passages, questions, choices, attempts, responses, practicePassages, practiceQuestions, practiceChoices, practicePassageImages } from "./schema.js";
 
 export const examsRelations = relations(exams, ({ many }) => ({
   sections: many(sections),
@@ -59,6 +59,7 @@ export const responsesRelations = relations(responses, ({ one }) => ({
 
 export const practicePassagesRelations = relations(practicePassages, ({ many }) => ({
   questions: many(practiceQuestions),
+  images: many(practicePassageImages),
 }));
 
 export const practiceQuestionsRelations = relations(practiceQuestions, ({ one, many }) => ({
@@ -73,5 +74,12 @@ export const practiceChoicesRelations = relations(practiceChoices, ({ one }) => 
   question: one(practiceQuestions, {
     fields: [practiceChoices.questionId],
     references: [practiceQuestions.id],
+  }),
+}));
+
+export const practicePassageImagesRelations = relations(practicePassageImages, ({ one }) => ({
+  passage: one(practicePassages, {
+    fields: [practicePassageImages.passageId],
+    references: [practicePassages.id],
   }),
 }));

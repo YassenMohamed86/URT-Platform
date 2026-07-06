@@ -1,8 +1,9 @@
 // @ts-nocheck
 /**
  * Seeds Biology practice data from ACT Crack (Shahd Gaber).
- * 68 passages, 525 questions with full explanations.
- * Figure-only questions (17) excluded — their choices are embedded images.
+ * 68 passages, 525 questions with full explanations, plus figure images
+ * extracted directly from the source PDF and matched to passages by page
+ * range + marker order.
  *
  * Usage: tsx db/seed-biology.ts
  */
@@ -11,7 +12,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { eq } from "drizzle-orm";
 import { getDb } from "../server/queries/connection.js";
-import { practicePassages, practiceQuestions, practiceChoices } from "./schema.js";
+import { practicePassages, practiceQuestions, practiceChoices, practicePassageImages } from "./schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const passages: Array<{
@@ -31,10 +32,18 @@ const passages: Array<{
   readFileSync(join(__dirname, "practice-biology.json"), "utf-8"),
 );
 
+const imagesByTest: Record<
+  string,
+  Array<{ page: number; width: number; height: number; dataUrl: string }>
+> = JSON.parse(
+  readFileSync(join(__dirname, "practice-biology-images.json"), "utf-8"),
+);
+
 const db = getDb();
 
 async function main() {
   console.log(`🌱  Seeding Biology: ${passages.length} passages...`);
+  let totalImages = 0;
 
   for (const [idx, p] of passages.entries()) {
     // ── Upsert passage ────────────────────────────────────────────
@@ -113,12 +122,35 @@ async function main() {
       );
     }
 
+    // ── Upsert images (matched to [[FIGURE]] markers, in order) ────
+    const markerCount = (p.bodyText.match(/\[\[FIGURE\]\]/g) ?? []).length;
+    const availableImages = imagesByTest[p.testCode] ?? [];
+
+    if (markerCount > 0 && availableImages.length > 0) {
+      await db
+        .delete(practicePassageImages)
+        .where(eq(practicePassageImages.passageId, passageId));
+
+      const toInsert = availableImages.slice(0, markerCount).map((img, i) => ({
+        passageId,
+        orderIndex: i,
+        imageData: img.dataUrl,
+        width: img.width,
+        height: img.height,
+      }));
+
+      if (toInsert.length > 0) {
+        await db.insert(practicePassageImages).values(toInsert);
+        totalImages += toInsert.length;
+      }
+    }
+
     if ((idx + 1) % 10 === 0 || idx === passages.length - 1) {
       console.log(`  ✓ ${idx + 1}/${passages.length} passages`);
     }
   }
 
-  console.log("✅  Biology seed complete — 68 passages, 525 questions.");
+  console.log(`✅  Biology seed complete — 68 passages, 525 questions, ${totalImages} figure images.`);
   process.exit(0);
 }
 

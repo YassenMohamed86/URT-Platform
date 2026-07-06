@@ -6,6 +6,7 @@ import {
   practicePassages,
   practiceQuestions,
   practiceChoices,
+  practicePassageImages,
 } from "../db/schema.js";
 
 // Every query in this file uses full-row select() (no column projection,
@@ -82,12 +83,18 @@ export const practiceRouter = createRouter({
         .filter((c) => questionIds.has(c.questionId))
         .sort((a, b) => a.label.localeCompare(b.label));
 
+      const allImages = await db.select().from(practicePassageImages);
+      const images = allImages
+        .filter((img) => img.passageId === passage.id)
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+
       return {
         id: passage.id,
         subject: passage.subject,
         sourceLabel: passage.sourceLabel,
         testCode: passage.testCode,
         bodyText: passage.bodyText,
+        images: images.map((img) => ({ dataUrl: img.imageData, width: img.width, height: img.height })),
         questions: qs.map((q) => ({
           id: q.id,
           number: q.number,

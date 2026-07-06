@@ -149,3 +149,13 @@ export const practiceChoices = sqliteTable("practice_choices", {
   text: text("text").notNull(),
 });
 export type PracticeChoice = typeof practiceChoices.$inferSelect;
+
+export const practicePassageImages = sqliteTable("practice_passage_images", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  passageId: integer("passage_id").notNull(),
+  orderIndex: integer("order_index").notNull().default(0), // which [[FIGURE]] marker this fills, in order
+  imageData: text("image_data").notNull(), // base64 data URL (data:image/png;base64,...)
+  width: integer("width"),
+  height: integer("height"),
+});
+export type PracticePassageImage = typeof practicePassageImages.$inferSelect;

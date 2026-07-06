@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useParams, useNavigate } from "react-router";
 import { trpc } from "@/providers/trpc";
 import Navbar from "@/components/Navbar";
-import { ArrowLeft, ArrowRight, ChevronLeft, Lightbulb, CheckCircle2, XCircle } from "lucide-react";
+import { markPassageCompleted } from "@/lib/practiceProgress";
+import { ArrowLeft, ArrowRight, ChevronLeft, Lightbulb, CheckCircle2, XCircle, PartyPopper } from "lucide-react";
 
 type AnswerState = {
   selectedLabel: string;
@@ -18,6 +19,47 @@ const SUBJECT_COLORS: Record<string, string> = {
   Geology:   "#8B6F4E",
 };
 
+// Splits passage body text on [[FIGURE]] markers and renders each text
+// chunk as flowing paragraphs, with the matching figure image dropped in
+// between chunks. Images are matched to markers in order.
+function PassageContent({
+  bodyText,
+  images,
+}: {
+  bodyText: string;
+  images: { dataUrl: string; width: number | null; height: number | null }[];
+}) {
+  const chunks = bodyText.split("[[FIGURE]]");
+
+  return (
+    <>
+      {chunks.map((chunk, i) => (
+        <Fragment key={i}>
+          {chunk
+            .split("\n\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((paragraph, pIdx) => (
+              <p key={pIdx} className="mb-4 last:mb-0">
+                {paragraph}
+              </p>
+            ))}
+          {i < chunks.length - 1 && images[i] && (
+            <div className="my-6 flex justify-center">
+              <img
+                src={images[i].dataUrl}
+                alt={`Figure ${i + 1}`}
+                className="max-w-full rounded-lg border"
+                style={{ borderColor: "var(--urt-border)" }}
+              />
+            </div>
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export default function PracticeSession() {
   const { passageId } = useParams<{ passageId: string }>();
   const navigate = useNavigate();
@@ -28,19 +70,45 @@ export default function PracticeSession() {
     { enabled: id > 0 },
   );
 
+  // Fetch sibling passages in this subject so we know what "next" means.
+  const { data: siblingPassages = [] } = trpc.practice.listPassages.useQuery(
+    { subject: passage?.subject ?? "" },
+    { enabled: !!passage?.subject },
+  );
+
   const checkAnswerMutation = trpc.practice.checkAnswer.useMutation();
 
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected, setSelected] = useState<Record<number, string>>({}); // questionId → selectedLabel
-  const [answers, setAnswers] = useState<Record<number, AnswerState>>({}); // questionId → result
+  const [selected, setSelected] = useState<Record<number, string>>({});
+  const [answers, setAnswers] = useState<Record<number, AnswerState>>({});
   const [checking, setChecking] = useState(false);
+  const [markedComplete, setMarkedComplete] = useState(false);
 
   // Reset when passage changes
   useEffect(() => {
     setCurrentIdx(0);
     setSelected({});
     setAnswers({});
+    setMarkedComplete(false);
   }, [id]);
+
+  const questions = passage?.questions ?? [];
+  const allAnswered = questions.length > 0 && Object.keys(answers).length === questions.length;
+
+  // Mark this passage completed in localStorage once every question is answered
+  useEffect(() => {
+    if (allAnswered && passage && !markedComplete) {
+      markPassageCompleted(passage.id);
+      setMarkedComplete(true);
+    }
+  }, [allAnswered, passage, markedComplete]);
+
+  const nextPassage = (() => {
+    if (!passage || siblingPassages.length === 0) return null;
+    const idx = siblingPassages.findIndex((p) => p.id === passage.id);
+    if (idx === -1 || idx === siblingPassages.length - 1) return null;
+    return siblingPassages[idx + 1];
+  })();
 
   if (isLoading) {
     return (
@@ -69,11 +137,11 @@ export default function PracticeSession() {
   }
 
   const accentColor = SUBJECT_COLORS[passage.subject] ?? "var(--urt-accent)";
-  const questions = passage.questions;
   const currentQ = questions[currentIdx];
   const currentAnswer = currentQ ? answers[currentQ.id] : undefined;
   const currentSelected = currentQ ? selected[currentQ.id] : undefined;
   const isAnswered = !!currentAnswer;
+  const isLastQuestion = currentIdx === questions.length - 1;
 
   const handleSelect = (label: string) => {
     if (!currentQ || isAnswered) return;
@@ -109,12 +177,12 @@ export default function PracticeSession() {
       gap: "12px",
       width: "100%",
       textAlign: "left",
-      padding: "12px 16px",
+      padding: "14px 18px",
       borderRadius: "10px",
       border: "1.5px solid var(--urt-border)",
       backgroundColor: "transparent",
       color: "var(--urt-ink)",
-      fontSize: "0.9rem",
+      fontSize: "0.95rem",
       lineHeight: 1.5,
       cursor: isAnswered ? "default" : "pointer",
       transition: "all 0.15s ease",
@@ -127,7 +195,6 @@ export default function PracticeSession() {
       return base;
     }
 
-    // Answered state
     if (label === currentAnswer!.correctAnswer) {
       return {
         ...base,
@@ -156,7 +223,7 @@ export default function PracticeSession() {
 
     if (isCurrent) {
       return {
-        width: 28, height: 28, borderRadius: 8, fontSize: "0.7rem", fontWeight: 600,
+        width: 30, height: 30, borderRadius: 8, fontSize: "0.75rem", fontWeight: 600,
         display: "flex", alignItems: "center", justifyContent: "center",
         backgroundColor: accentColor, color: "#fff", cursor: "pointer", flexShrink: 0,
         border: "none",
@@ -164,7 +231,7 @@ export default function PracticeSession() {
     }
     if (ans) {
       return {
-        width: 28, height: 28, borderRadius: 8, fontSize: "0.7rem", fontWeight: 600,
+        width: 30, height: 30, borderRadius: 8, fontSize: "0.75rem", fontWeight: 600,
         display: "flex", alignItems: "center", justifyContent: "center",
         backgroundColor: ans.isCorrect ? "rgba(107,143,113,0.15)" : "rgba(196,75,75,0.10)",
         color: ans.isCorrect ? "#3d5e42" : "#C44B4B",
@@ -172,7 +239,7 @@ export default function PracticeSession() {
       };
     }
     return {
-      width: 28, height: 28, borderRadius: 8, fontSize: "0.7rem", fontWeight: 600,
+      width: 30, height: 30, borderRadius: 8, fontSize: "0.75rem", fontWeight: 600,
       display: "flex", alignItems: "center", justifyContent: "center",
       backgroundColor: "transparent",
       color: "var(--urt-ink-faint)",
@@ -184,6 +251,14 @@ export default function PracticeSession() {
   const answeredCount = Object.keys(answers).length;
   const correctCount = Object.values(answers).filter((a) => a.isCorrect).length;
 
+  const goToNextPassage = () => {
+    if (nextPassage) {
+      navigate(`/practice/session/${nextPassage.id}`);
+    } else {
+      navigate("/practice");
+    }
+  };
+
   return (
     <div
       className="h-screen flex flex-col overflow-hidden"
@@ -193,7 +268,7 @@ export default function PracticeSession() {
       <div
         className="flex-shrink-0 flex items-center gap-4 px-5 border-b"
         style={{
-          height: 56,
+          height: 52,
           backgroundColor: "var(--urt-surface)",
           borderColor: "var(--urt-border)",
         }}
@@ -224,10 +299,6 @@ export default function PracticeSession() {
               </span>
             </>
           )}
-          <span style={{ color: "var(--urt-border)" }}>·</span>
-          <span className="text-xs" style={{ color: "var(--urt-ink-faint)" }}>
-            {passage.sourceLabel}
-          </span>
         </div>
 
         {answeredCount > 0 && (
@@ -247,36 +318,36 @@ export default function PracticeSession() {
         )}
       </div>
 
-      {/* Main content */}
+      {/* Main content — 50/50 split, fills remaining height */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* ── Left: Passage ── */}
+        {/* ── Left: Passage — 50% ── */}
         <div
-          className="w-[42%] overflow-y-auto border-r hidden lg:block"
+          className="w-1/2 overflow-y-auto border-r hidden lg:block"
           style={{ backgroundColor: "var(--urt-paper)", borderColor: "var(--urt-border)" }}
         >
-          <div className="p-8">
+          <div className="px-10 py-8 h-full">
             <p
-              className="text-xs font-semibold uppercase tracking-wider mb-4"
+              className="text-xs font-semibold uppercase tracking-wider mb-5"
               style={{ color: "var(--urt-ink-faint)" }}
             >
               Passage
             </p>
             <div
-              className="text-base leading-relaxed whitespace-pre-wrap"
-              style={{ color: "var(--urt-ink)", lineHeight: 1.8, letterSpacing: "0.01em" }}
+              className="text-[1.05rem]"
+              style={{ color: "var(--urt-ink)", lineHeight: 1.85, letterSpacing: "0.01em" }}
             >
-              {passage.bodyText}
+              <PassageContent bodyText={passage.bodyText} images={passage.images} />
             </div>
           </div>
         </div>
 
-        {/* ── Right: Question panel ── */}
+        {/* ── Right: Question panel — 50% ── */}
         <div
-          className="flex-1 overflow-y-auto"
+          className="w-full lg:w-1/2 overflow-y-auto"
           style={{ backgroundColor: "var(--urt-surface)" }}
         >
-          <div className="p-6 max-w-xl">
+          <div className="px-10 py-8 h-full flex flex-col">
 
             {/* Mobile passage toggle */}
             <div className="lg:hidden mb-6">
@@ -291,20 +362,21 @@ export default function PracticeSession() {
                   Show Passage
                 </summary>
                 <div
-                  className="px-4 py-4 text-sm leading-relaxed whitespace-pre-wrap border-t"
+                  className="px-4 py-4 text-sm border-t"
                   style={{
                     color: "var(--urt-ink)",
                     borderColor: "var(--urt-border)",
                     backgroundColor: "var(--urt-paper)",
+                    lineHeight: 1.75,
                   }}
                 >
-                  {passage.bodyText}
+                  <PassageContent bodyText={passage.bodyText} images={passage.images} />
                 </div>
               </details>
             </div>
 
             {/* Question navigator */}
-            <div className="flex flex-wrap gap-1.5 mb-6">
+            <div className="flex flex-wrap gap-1.5 mb-7">
               {questions.map((q, idx) => (
                 <button
                   key={q.id}
@@ -316,17 +388,75 @@ export default function PracticeSession() {
               ))}
             </div>
 
-            {/* Question */}
-            {currentQ && (
-              <div>
+            {/* Question or completion screen */}
+            {allAnswered && isAnswered && isLastQuestion ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center mb-5"
+                  style={{ backgroundColor: `${accentColor}18` }}
+                >
+                  <PartyPopper className="w-8 h-8" style={{ color: accentColor }} />
+                </div>
+                <h2
+                  className="text-2xl mb-2"
+                  style={{ fontFamily: '"DM Serif Display", Georgia, serif', color: "var(--urt-ink)" }}
+                >
+                  Passage complete!
+                </h2>
+                <p className="text-sm mb-1" style={{ color: "var(--urt-ink-light)" }}>
+                  You got {correctCount} of {questions.length} correct.
+                </p>
+                {nextPassage ? (
+                  <p className="text-xs mb-8" style={{ color: "var(--urt-ink-faint)" }}>
+                    Next up: {nextPassage.testCode ?? "the next passage"}
+                  </p>
+                ) : (
+                  <p className="text-xs mb-8" style={{ color: "var(--urt-ink-faint)" }}>
+                    That's the last passage in {passage.subject}.
+                  </p>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => navigate("/practice")}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm transition-colors"
+                    style={{
+                      color: "var(--urt-ink-light)",
+                      backgroundColor: "transparent",
+                      border: "1.5px solid var(--urt-border)",
+                    }}
+                  >
+                    All Passages
+                  </button>
+                  <button
+                    onClick={goToNextPassage}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all"
+                    style={{ backgroundColor: accentColor, color: "#fff", border: "none" }}
+                  >
+                    {nextPassage ? "Next Passage" : "Back to Passages"}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Let them review any question again from here too */}
+                <button
+                  onClick={() => setCurrentIdx(0)}
+                  className="text-xs mt-6 underline"
+                  style={{ color: "var(--urt-ink-faint)" }}
+                >
+                  Review answers
+                </button>
+              </div>
+            ) : currentQ ? (
+              <div className="flex-1 flex flex-col">
                 <p
-                  className="text-sm font-semibold mb-1"
+                  className="text-sm font-semibold mb-1.5"
                   style={{ color: "var(--urt-ink-faint)" }}
                 >
                   Question {currentIdx + 1} of {questions.length}
                 </p>
                 <p
-                  className="text-base mb-5 leading-relaxed"
+                  className="text-[1.05rem] mb-6 leading-relaxed"
                   style={{ color: "var(--urt-ink)", lineHeight: 1.65 }}
                 >
                   {currentQ.text}
@@ -340,9 +470,8 @@ export default function PracticeSession() {
                       style={getChoiceStyle(choice.label)}
                       onClick={() => handleSelect(choice.label)}
                     >
-                      {/* Label badge */}
                       <span
-                        className="flex-shrink-0 w-6 h-6 rounded flex items-center justify-center text-xs font-bold mt-0.5"
+                        className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center text-xs font-bold mt-0.5"
                         style={{
                           backgroundColor: (() => {
                             if (!isAnswered) {
@@ -372,7 +501,7 @@ export default function PracticeSession() {
                   <button
                     onClick={handleCheck}
                     disabled={!currentSelected || checking}
-                    className="mt-5 w-full py-3 rounded-xl text-sm font-semibold transition-all"
+                    className="mt-5 w-full py-3.5 rounded-xl text-sm font-semibold transition-all"
                     style={{
                       backgroundColor: currentSelected ? accentColor : "var(--urt-border)",
                       color: currentSelected ? "#fff" : "var(--urt-ink-faint)",
@@ -387,7 +516,6 @@ export default function PracticeSession() {
                 {/* Result + Explanation */}
                 {isAnswered && (
                   <div className="mt-5 space-y-3">
-                    {/* Result banner */}
                     <div
                       className="flex items-center gap-2 px-4 py-3 rounded-xl"
                       style={{
@@ -412,7 +540,6 @@ export default function PracticeSession() {
                       </p>
                     </div>
 
-                    {/* Explanation */}
                     {currentAnswer.explanation && (
                       <div
                         className="flex gap-3 px-4 py-4 rounded-xl"
@@ -459,7 +586,7 @@ export default function PracticeSession() {
                     Previous
                   </button>
 
-                  {currentIdx < questions.length - 1 ? (
+                  {!isLastQuestion ? (
                     <button
                       onClick={() => setCurrentIdx((i) => i + 1)}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
@@ -473,24 +600,19 @@ export default function PracticeSession() {
                       Next
                       <ArrowRight className="w-4 h-4" />
                     </button>
-                  ) : (
+                  ) : isAnswered ? (
                     <button
-                      onClick={() => navigate("/practice")}
+                      onClick={goToNextPassage}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                      style={{
-                        backgroundColor: accentColor,
-                        color: "#fff",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
+                      style={{ backgroundColor: accentColor, color: "#fff", border: "none" }}
                     >
-                      Done — Back to Passages
+                      {nextPassage ? "Next Passage" : "Back to Passages"}
                       <ArrowRight className="w-4 h-4" />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

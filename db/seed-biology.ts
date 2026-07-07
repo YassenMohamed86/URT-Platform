@@ -59,7 +59,12 @@ async function main() {
       passageId = existingP[0].id;
       await db
         .update(practicePassages)
-        .set({ bodyText: p.bodyText, orderIndex: p.orderIndex })
+        .set({
+          subject: p.subject,
+          sourceLabel: p.sourceLabel,
+          bodyText: p.bodyText,
+          orderIndex: p.orderIndex,
+        })
         .where(eq(practicePassages.id, passageId));
     } else {
       const [row] = await db

@@ -1,0 +1,50 @@
+name: Temp Verify Counts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify counts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+        run: npx tsx db/verify-counts.ts > /tmp/verify_output.txt 2>&1 || echo "FAILED" > /tmp/verify_failed.txt
+
+      - name: Show output
+        if: always()
+        run: cat /tmp/verify_output.txt || echo "no output captured"
+
+      - name: Post as commit comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -c "
+          import json
+          body = open('/tmp/verify_output.txt').read()[-6000:]
+          status = 'FAILED' if __import__('os').path.exists('/tmp/verify_failed.txt') else 'OK'
+          print(json.dumps({'body': 'Verify counts (' + status + '):\n\n' + body}))
+          " > /tmp/payload.json
+          curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -d @/tmp/payload.json

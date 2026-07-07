@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router";
-import { Sun, Moon, BookOpen } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { Sun, Moon, BookOpen, User } from "lucide-react";
 import { useThemeStore } from "@/stores";
+import { useAuth } from "@/providers/auth";
 
 export default function Navbar() {
   const { isDark, toggle } = useThemeStore();
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const isHome = location.pathname === "/";
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 100);
@@ -70,6 +73,36 @@ export default function Navbar() {
               <Moon className="w-5 h-5" style={{ color: "var(--urt-ink)" }} />
             )}
           </button>
+
+          {user ? (
+            <div className="flex items-center gap-3 pl-1">
+              <span
+                className="hidden sm:flex items-center gap-1.5 text-sm"
+                style={{ color: "var(--urt-ink-light)" }}
+              >
+                <User className="w-3.5 h-3.5" />
+                {user.name || user.email}
+              </span>
+              <button
+                onClick={() => {
+                  logout();
+                  navigate("/");
+                }}
+                className="text-sm transition-colors hover:text-[var(--urt-ink)]"
+                style={{ color: "var(--urt-ink-faint)" }}
+              >
+                Log out
+              </button>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="text-sm font-medium transition-colors"
+              style={{ color: "var(--urt-accent)" }}
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </div>
     </nav>

@@ -21,8 +21,12 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       headers() {
-        const token = sessionStorage.getItem("urt-admin-token");
-        return token ? { "x-admin-token": token } : {};
+        const adminToken = sessionStorage.getItem("urt-admin-token");
+        const userToken = localStorage.getItem("urt_user_token");
+        return {
+          ...(adminToken ? { "x-admin-token": adminToken } : {}),
+          ...(userToken ? { authorization: `Bearer ${userToken}` } : {}),
+        };
       },
       fetch(input, init) {
         return globalThis.fetch(input, {

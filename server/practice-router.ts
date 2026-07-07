@@ -7,6 +7,7 @@ import {
   practiceQuestions,
   practiceChoices,
   practicePassageImages,
+  practiceProgress,
 } from "../db/schema.js";
 
 // Every query in this file uses full-row select() (no column projection,
@@ -126,5 +127,53 @@ export const practiceRouter = createRouter({
         correctAnswer: q.correctAnswer,
         explanation: q.explanation ?? null,
       };
+    }),
+
+  // Everything below is server-side completion tracking for signed-in users.
+  // Guests keep working purely off localStorage (src/lib/practiceProgress.ts)
+  // — these all no-op (rather than error) when ctx.userId is null, since
+  // being logged out is a completely normal state, not a failure.
+
+  markCompleted: publicQuery
+    .input(z.object({ passageId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.userId) return { synced: false };
+      const db = getDb();
+      const existing = await db.select().from(practiceProgress);
+      const already = existing.some(
+        (r) => r.userId === ctx.userId && r.passageId === input.passageId,
+      );
+      if (!already) {
+        await db.insert(practiceProgress).values({ userId: ctx.userId, passageId: input.passageId });
+      }
+      return { synced: true };
+    }),
+
+  listCompleted: publicQuery.query(async ({ ctx }) => {
+    if (!ctx.userId) return [];
+    const db = getDb();
+    const rows = await db.select().from(practiceProgress);
+    return rows.filter((r) => r.userId === ctx.userId).map((r) => r.passageId);
+  }),
+
+  // Called once right after signup/login so progress made as a guest on
+  // this device isn't lost when an account is created.
+  claimLocalProgress: publicQuery
+    .input(z.object({ passageIds: z.array(z.number().int().positive()).max(500) }))
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const db = getDb();
+      const existing = await db.select().from(practiceProgress);
+      const already = new Set(
+        existing.filter((r) => r.userId === ctx.userId).map((r) => r.passageId),
+      );
+      const toInsert = input.passageIds.filter((id) => !already.has(id));
+      if (toInsert.length > 0) {
+        const userId = ctx.userId;
+        await db.insert(practiceProgress).values(
+          toInsert.map((passageId) => ({ userId, passageId })),
+        );
+      }
+      return { claimed: toInsert.length };
     }),
 });

@@ -2,9 +2,13 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  // Legacy field from an earlier OAuth-style design that was never wired up.
+  // Real accounts (email/password auth) just set this to the email address,
+  // so it keeps satisfying the unique/not-null constraint with no extra migration.
   unionId: text("unionId").notNull().unique(),
   name: text("name"),
-  email: text("email"),
+  email: text("email").unique(),
+  passwordHash: text("password_hash"), // null for any pre-auth rows; always set for real accounts
   avatar: text("avatar"),
   role: text("role").default("user").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).defaultNow().notNull(),
@@ -116,15 +120,18 @@ export const votes = sqliteTable("votes", {
 export type Vote = typeof votes.$inferSelect;
 export type InsertVote = typeof votes.$inferInsert;
 
-// ── Practice (ACT Crack / Shahd Gaber) ──────────────────────────────────────
+// ── Practice / Drill ─────────────────────────────────────────────────────
 // Completely separate from URT exam tables.
-// Passages have a subject tag and a source label so future question sets
-// can be added without schema changes (just a different sourceLabel value).
+// Passages have a subject tag and a source label ("sourceLabel"), which the
+// UI surfaces as a "Chapter" — a horizontal tab within a subject. Today every
+// subject has exactly one chapter, "ACT Crack Shahd Gaber", but the field
+// exists precisely so more chapters (other question banks/resources) can be
+// added later without any schema change — just a new sourceLabel value.
 
 export const practicePassages = sqliteTable("practice_passages", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   subject: text("subject").notNull(),       // "Biology" | "Physics" | "Chemistry" | "Geology"
-  sourceLabel: text("source_label").notNull(), // "ACT Crack (Shahd Gaber)"
+  sourceLabel: text("source_label").notNull(), // Chapter name, e.g. "ACT Crack Shahd Gaber"
   testCode: text("test_code"),              // "Test 6-1", "Test 7-2", …
   bodyText: text("body_text").notNull(),
   orderIndex: integer("order_index").notNull().default(0),
@@ -159,3 +166,15 @@ export const practicePassageImages = sqliteTable("practice_passage_images", {
   height: integer("height"),
 });
 export type PracticePassageImage = typeof practicePassageImages.$inferSelect;
+
+// Server-side record of which Drill passages a signed-in user has finished,
+// so progress survives switching devices. Guests keep working entirely off
+// localStorage (see src/lib/practiceProgress.ts) — this table only ever gets
+// rows for requests carrying a valid user auth token.
+export const practiceProgress = sqliteTable("practice_progress", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  passageId: integer("passage_id").notNull(),
+  completedAt: integer("completed_at", { mode: "timestamp" }).defaultNow().notNull(),
+});
+export type PracticeProgress = typeof practiceProgress.$inferSelect;

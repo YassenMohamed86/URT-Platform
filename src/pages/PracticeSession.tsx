@@ -77,6 +77,7 @@ export default function PracticeSession() {
   );
 
   const checkAnswerMutation = trpc.practice.checkAnswer.useMutation();
+  const markCompletedMutation = trpc.practice.markCompleted.useMutation();
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<Record<number, string>>({});
@@ -95,12 +96,17 @@ export default function PracticeSession() {
   const questions = passage?.questions ?? [];
   const allAnswered = questions.length > 0 && Object.keys(answers).length === questions.length;
 
-  // Mark this passage completed in localStorage once every question is answered
+  // Mark this passage completed once every question is answered — locally
+  // right away (works offline, works for guests), and also synced to the
+  // server so it shows up if this account is opened on another device.
+  // markCompleted no-ops server-side for guests, so this is always safe to fire.
   useEffect(() => {
     if (allAnswered && passage && !markedComplete) {
       markPassageCompleted(passage.id);
+      markCompletedMutation.mutate({ passageId: passage.id });
       setMarkedComplete(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutate is stable enough here; markedComplete already guards against refiring
   }, [allAnswered, passage, markedComplete]);
 
   const nextPassage = (() => {

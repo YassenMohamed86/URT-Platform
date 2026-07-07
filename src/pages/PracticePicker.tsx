@@ -15,13 +15,16 @@ const SUBJECTS = [
 export default function PracticePicker() {
   const navigate = useNavigate();
   const [activeSubject, setActiveSubject] = useState<string>("Biology");
-  const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
+  const [activeChapter, setActiveChapter] = useState<string | null>(null);
+  const [localCompletedIds, setLocalCompletedIds] = useState<Set<number>>(new Set());
 
-  // Refresh completion state whenever this page is shown (e.g. navigating
-  // back here after finishing a passage) so checkmarks stay current.
+  // Refresh local completion state whenever this page is shown (e.g.
+  // navigating back here after finishing a passage) so checkmarks stay
+  // current. Server-side completion (signed-in users) comes from
+  // listCompleted below and is merged in separately.
   useEffect(() => {
-    setCompletedIds(getCompletedPassageIds());
-    const onFocus = () => setCompletedIds(getCompletedPassageIds());
+    setLocalCompletedIds(getCompletedPassageIds());
+    const onFocus = () => setLocalCompletedIds(getCompletedPassageIds());
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, []);
@@ -41,6 +44,28 @@ export default function PracticePicker() {
     { enabled: !!activeSubject },
   );
 
+  // No-ops server-side and returns [] when nobody's signed in, so this is
+  // always safe to fire.
+  const { data: serverCompletedIds = [] } = trpc.practice.listCompleted.useQuery();
+
+  const completedIds = new Set<number>(localCompletedIds);
+  for (const id of serverCompletedIds) completedIds.add(id);
+
+  // Chapters are just the distinct sourceLabels within the active subject —
+  // "ACT Crack Shahd Gaber" today, more added over time as other resources
+  // come in. Order follows first appearance in the (already orderIndex-sorted) list.
+  const chapters = Array.from(new Set(passages.map((p) => p.sourceLabel)));
+
+  useEffect(() => {
+    if (chapters.length > 0 && (!activeChapter || !chapters.includes(activeChapter))) {
+      setActiveChapter(chapters[0]);
+    }
+  }, [chapters, activeChapter]);
+
+  const visiblePassages = activeChapter
+    ? passages.filter((p) => p.sourceLabel === activeChapter)
+    : passages;
+
   const activeMeta = SUBJECTS.find((s) => s.name === activeSubject) ?? SUBJECTS[0];
   const anyError = subjectsError ?? passagesError;
 
@@ -55,7 +80,7 @@ export default function PracticePicker() {
             className="text-xs font-semibold uppercase tracking-[0.08em] mb-3"
             style={{ color: "var(--urt-ink-faint)" }}
           >
-            ACT Crack · Shahd Gaber
+            Drill
           </p>
           <h1
             className="text-4xl mb-3"
@@ -127,6 +152,40 @@ export default function PracticePicker() {
           })}
         </div>
 
+        {/* Chapter tabs — a horizontal row, not cards, since this is a second,
+            lighter-weight tier of navigation nested under the subject tabs
+            above. "ACT Crack Shahd Gaber" is the only chapter today; more
+            resources will show up here as additional tabs later. */}
+        {chapters.length > 0 && (
+          <div
+            className="flex items-center gap-6 mb-7 border-b overflow-x-auto"
+            style={{ borderColor: "var(--urt-border)" }}
+          >
+            {chapters.map((chapter) => {
+              const active = chapter === activeChapter;
+              return (
+                <button
+                  key={chapter}
+                  onClick={() => setActiveChapter(chapter)}
+                  className="relative whitespace-nowrap pb-3 text-sm transition-colors"
+                  style={{
+                    fontWeight: active ? 600 : 500,
+                    color: active ? activeMeta.color : "var(--urt-ink-faint)",
+                  }}
+                >
+                  {chapter}
+                  {active && (
+                    <span
+                      className="absolute left-0 right-0 -bottom-px h-[2px] rounded-full"
+                      style={{ backgroundColor: activeMeta.color }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Passage list */}
         {passagesError ? null : passagesLoading ? (
           <div className="flex flex-col gap-3">
@@ -138,7 +197,7 @@ export default function PracticePicker() {
               />
             ))}
           </div>
-        ) : passages.length === 0 ? (
+        ) : visiblePassages.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center py-24 rounded-2xl border-2 border-dashed"
             style={{ borderColor: "var(--urt-border)", color: "var(--urt-ink-faint)" }}
@@ -151,7 +210,7 @@ export default function PracticePicker() {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {passages.map((p, i) => (
+            {visiblePassages.map((p, i) => (
               <button
                 key={p.id}
                 onClick={() => navigate(`/practice/session/${p.id}`)}

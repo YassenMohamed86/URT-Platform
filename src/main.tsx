@@ -6,12 +6,15 @@ import '@fontsource/inter/600.css'
 import '@fontsource/dm-serif-display/400.css'
 import './index.css'
 import { TRPCProvider } from "@/providers/trpc"
+import { AuthProvider } from "@/providers/auth"
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
     <TRPCProvider>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </TRPCProvider>
   </BrowserRouter>,
 )

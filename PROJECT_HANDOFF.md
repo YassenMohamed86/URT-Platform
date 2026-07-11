@@ -94,11 +94,16 @@ db/
   seed.ts                  Seeds Exams data (unrelated to Drill)
   seed-biology.ts          Seeds Drill Biology — USE AS THE TEMPLATE for any
                             new subject's seed script (copy + adapt)
+  seed-physics.ts / seed-chemistry.ts   Same pattern, already done — copy
+                            whichever is most recent for the next subject
   practice-biology.json    Biology passages/questions/choices/explanations
   practice-biology-images.json   Biology figure images, keyed by testCode
+  practice-physics*.json / practice-chemistry*.json   Same pattern per subject
   verify-counts.ts         Reusable read-only diagnostic — run via a GitHub
                             Actions workflow_dispatch to check row counts
-                            without needing direct DB/Vercel access
+                            without needing direct DB/Vercel access. Includes
+                            an images_by_subject breakdown, useful for
+                            sanity-checking figure counts after a new seed.
 src/pages/
   PracticePicker.tsx        Drill subject tabs + passage list + completion checkmarks
   PracticeSession.tsx       Drill session: 50/50 passage/question layout,
@@ -110,33 +115,108 @@ src/lib/practiceProgress.ts  localStorage-based completion tracker (no user
 .github/workflows/
   db-setup.yml              drizzle-kit push + seeds Exams data. Triggers on
                              schema.ts / seed.ts changes.
-  seed-practice.yml         Runs db:seed-biology. Triggers on db/practice-*.json
-                             or seed-biology.ts changes. ADD A NEW STEP + path
-                             trigger per new subject (see §5).
+  seed-practice.yml         Runs db:seed-biology, db:seed-physics, and
+                             db:seed-chemistry as separate steps (each
+                             continue-on-error, each posts its own failure as
+                             a commit comment). Triggers on db/practice-*.json
+                             or any seed-{subject}.ts changing. ADD A NEW STEP
+                             + path trigger per new subject (see §5).
 ```
 
 ## 4. Drill subject status
 
 | Subject | Status | Passages | Questions | Figures |
 |---|---|---|---|---|
-| Biology | ✅ Done, verified live | 68 | 525 | 56 images, 27 passages |
-| Chemistry | 🟡 Files uploaded, not yet processed | — | — | — |
-| Physics | ⬜ Not started, no files yet | — | — | — |
-| Geology | ⬜ Not started, no files yet | — | — | — |
-| English | ⬜ Mentioned once by Yassen, **no source material provided at all** — confirm what this actually is (likely a different source than "ACT Crack," ACT doesn't have a science-style English section) before doing any work |
+| Biology | ✅ Done, verified live | 68 | 525 | 54 images, used across 27 passages |
+| Physics | ✅ Done, verified live | 36 | 274 | 60 images |
+| Chemistry | ✅ Done, verified live | 52 | 310 | 85 images, 28 passages have ≥1 |
+| Geology | ⬜ Not started — folder confirmed **empty** on Drive, source material may not exist yet |
+| English | ⬜ Not started — Drive folder inaccessible (link-only sharing, not shared with the connected account); needs a re-share or direct upload before any work can start |
 
-**Chemistry specifically**: `ACT_Crack_Chemistry.pdf` (questions) and
-`ACT_Crack_Chemistry_Answers.pdf` (answers) were uploaded in the conversation
-that produced this handoff, and were mid-processing when it ended. **Files
-uploaded in one conversation do not carry over to a new one** — Yassen will
-need to re-upload both Chemistry PDFs (and eventually Physics/Geology/English
-source files) at the start of the new chat before any processing can resume.
+**Chemistry specifically** (done — for the next subject, read this before
+starting, it'll save you re-discovering the same gotchas):
 
-17 Biology questions were excluded entirely because their answer choices are
-graphs/images rather than text (unrenderable as plain choice text) — expect
-the same issue in Chemistry/Physics given how graph-heavy those sections
-typically are; flag and exclude the same way, don't silently guess at a
-description of the image.
+- Of the 55 tests in the answers PDF, 3 (**Tests 88, 98, 103**) have zero
+  matching passage/question text anywhere in the questions PDF — not a
+  different heading format, genuinely absent, verified by checking the exact
+  line gap between the surrounding tests. Excluded entirely, same as any
+  other "source doesn't have it" gap.
+- **A misfiled answer-key block**: Test 58's Q7/Q8 explanations are
+  physically printed *after* Test 87-2's Q10 in the answers PDF, with no
+  header of their own — a pagination artifact in the original Word doc, not
+  a new test. Answer-key parsing should never assume a block belongs to
+  whatever test-header came most recently; when a test's question-number
+  sequence goes non-monotonic (drops instead of increases), that's the
+  signal something got misfiled — check by content, not just position.
+- **Choice-marker layout is not always "one per line."** This source has: choice
+  A merged onto the end of the stem with just one space before it
+  (`...which: A. H2O was`); two choices sharing one line in a 2-column
+  layout (`A .32.0 g      C. 8.0 g` / `B.16.0g      D. 4.0 g` — note also the
+  stray space before some periods and the occasional lowercase OCR glitch
+  like `b.` or `c.`); and choices merged at the *end* of a line (`H. S3 J.
+  All mixtures...`). A pure "start of line" regex misses all of these.
+  Fix: match a choice marker when preceded by either start-of-line OR any
+  single space/tab (not requiring 2+), case-insensitive on the letter, then
+  require the four matched labels to be exactly `{A,B,C,D}` or `{F,G,H,J}`
+  — but pick the **first occurrence of each letter independently** rather
+  than requiring them to appear in strict left-to-right order, since a
+  2-column layout's raw reading order is A,C,B,D not A,B,C,D. Sort the
+  chosen matches by position afterward to slice choice text correctly, then
+  sort the output list by letter.
+- **Answer-key-guided question boundaries need a trailing-edge safety
+  check.** The questions PDF is usually pre-trimmed to only the
+  answered-question range, but not always at the *end*: two tests (21-2,
+  57) still had one extra unanswered question physically present after the
+  last one Shahd explains, which will bleed into the last question's choice
+  text unless you specifically scan for (and stop at) any further
+  `^\d+\.` line before trusting "end of test section" as the boundary.
+- **Not every embedded image has a `Figure N` caption — some are `Table N`,
+  and Table captions are genuinely ambiguous**, unlike Figure captions
+  (every `Figure N` caption in this source really is an unrenderable image,
+  no exceptions found). Some tables are real images with a caption and
+  nothing else following (blank all the way to the next caption/section);
+  others have the exact same caption format but their data *does* exist as
+  plain extracted text somewhere shortly after — sometimes immediately,
+  sometimes after a paragraph or two of unrelated prose, sometimes with a
+  spurious blank line in the middle of the row data itself. Heuristic that
+  worked: collect tokens from right after the caption up to the first run
+  of **2+ consecutive blank lines** (tolerating single blank lines within
+  that block, e.g. between a header row and the data rows), and treat it as
+  real text if that collected block has ≥3 tokens with ≥2 numeric ones —
+  otherwise it's an image. Also watch for decimal-style captions
+  (`Figure 4.3`, `TABLE 4.1 Functional Group Bonds`) in the more
+  textbook-excerpt-flavored later tests, not just the plain-integer ACT
+  style — and distinguish a true standalone caption from an inline sentence
+  mention (`Figure 4.3 illustrates the relationship...`) by requiring any
+  trailing text after the number to start with a capital letter (inline
+  mentions continue with a lowercase verb).
+- **Known gap, accepted rather than chased further**: a small number of
+  tables have *zero* textual trace at all — no caption line, no data,
+  referenced only inline mid-sentence (e.g. "...listed in Table 1.") with
+  the actual table baked into an image that has its own caption text
+  drawn *inside* the image itself, invisible to `pdftotext` entirely. These
+  can't be found by any text-based heuristic; catching every one would mean
+  visually auditing most of the document's ~140 embedded images by hand.
+  Two confirmed instances (Test 2-2's Table 1, and its Table 2) were caught
+  incidentally while debugging something else and fixed by hand; others
+  likely remain. Not a correctness risk (nothing is mislabeled or wrong,
+  some supplementary tables are just missing their visual), so it wasn't
+  worth the time to hunt exhaustively — the explanations are written to be
+  self-contained enough that this doesn't block understanding.
+- Decorative icons aren't just the ~13×13 bullet points seen in Biology —
+  this source also repeats a ~62×53 blank/white circle icon 135 times
+  across the document. Filter that exact size out alongside the general
+  width/height>50 rule, or it'll pollute the figure candidate list.
+- A pasted-from-elsewhere page occasionally leaks a UI artifact into the
+  text layer (a standalone `SUBMIT` line, from whatever quiz tool the
+  source content was assembled in originally) — strip trailing `SUBMIT`
+  tokens from cleaned choice/stem text.
+
+17 Biology questions and 10 Chemistry questions were excluded because their
+answer choices are graphs/images rather than text (unrenderable as plain
+choice text) — expect the same issue in Physics/Geology given how graph-heavy
+science sections typically are; flag and exclude the same way, don't silently
+guess at a description of the image.
 
 ## 5. Pipeline for adding a new Drill subject
 
@@ -233,9 +313,10 @@ branding discussions, though the live nav currently reads "URT Practice."
   by current valid `questionId`, so orphaned rows can't surface in any real
   response. Worth a `DELETE FROM practice_choices WHERE question_id NOT IN
   (SELECT id FROM practice_questions)` cleanup someday, not urgent.
-- Of 191 raw large images extracted from the Biology PDF, only 56 ended up
-  used (matched to an actual `[[FIGURE]]` marker) — the rest are very likely
-  the answer-choice images belonging to the 17 excluded image-choice
-  questions, not real passage figures. This is expected, not a bug, but the
-  same ratio will likely show up for other subjects — don't be alarmed if
-  most extracted images go unused.
+- Of the raw large images extracted from each subject's PDF, only a fraction
+  end up used (matched to an actual `[[FIGURE]]` marker) — confirmed via
+  `images_by_subject` in `verify-counts.ts` output: Biology 54, Physics 60,
+  Chemistry 85. The rest are very likely answer-choice images belonging to
+  excluded image-choice questions (see §4), not real passage figures. This
+  is expected, not a bug — don't be alarmed if most extracted images go
+  unused, and don't try to force every extracted image into a marker slot.

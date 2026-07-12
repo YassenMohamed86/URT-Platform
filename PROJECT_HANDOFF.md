@@ -320,3 +320,15 @@ branding discussions, though the live nav currently reads "URT Practice."
   excluded image-choice questions (see §4), not real passage figures. This
   is expected, not a bug — don't be alarmed if most extracted images go
   unused, and don't try to force every extracted image into a marker slot.
+
+## 8. Home / Login page copy (as of 2026-07-13)
+
+`src/pages/Home.tsx`'s post-hero section (quote + "Why I built this" +
+"So, what do we have over here?") and `src/pages/Login.tsx`'s trust/guest
+copy were written directly by Yassen, first person, deliberately casual,
+comma-spliced instead of em-dashed. Treat this as final content, not a
+placeholder — don't rewrite or "polish" it back toward generic feature-card
+copy in a future session. If new sections get added later, match this
+voice rather than reverting to something more corporate. The three
+"So, what do we have" cards (Exams/Drill/Community) navigate to
+`/exams`, `/practice`, `/community` respectively on click.

@@ -157,16 +157,23 @@ export default function Login() {
           </button>
         </form>
 
+        <p className="text-xs text-center mt-3" style={{ color: "var(--urt-ink-faint)" }}>
+          Signing in only saves your progress, that's it. No spam, no data sharing, nothing sketchy.
+        </p>
+
         {/* Guest fallback — no account required to use Drill; only Community
             posting benefits from a name at all. */}
         <div className="mt-6 pt-5 border-t text-center" style={{ borderColor: "var(--urt-border-subtle)" }}>
+          <p className="text-xs text-left leading-relaxed mb-4" style={{ color: "var(--urt-ink-light)" }}>
+            Signing in is just so your progress gets saved, nothing else. It means you can drill a passage today, close the tab, and pick up exactly where you left off tomorrow, even from a different device. Don't want to sign in? Totally fine, you can use URT-Platform as a guest, no account needed. Just know your progress won't be saved between visits.
+          </p>
           {!showGuest ? (
             <button
               onClick={() => setShowGuest(true)}
               className="text-xs underline"
               style={{ color: "var(--urt-ink-faint)" }}
             >
-              Prefer not to make an account? Continue as guest
+              Continue as guest
             </button>
           ) : (
             <div className="space-y-2.5 text-left">
@@ -186,9 +193,6 @@ export default function Login() {
               >
                 {guestName.trim() ? "Save & Continue" : "Continue as Guest"}
               </button>
-              <p className="text-xs text-center" style={{ color: "var(--urt-ink-faint)" }}>
-                Note: guest progress only lives on this device.
-              </p>
             </div>
           )}
         </div>

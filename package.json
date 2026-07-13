@@ -10,6 +10,7 @@
     "db:import": "tsx db/seed.ts",
     "db:seed-biology": "tsx db/seed-biology.ts",
     "db:seed-physics": "tsx db/seed-physics.ts",
+    "db:seed-chemistry": "tsx db/seed-chemistry.ts",
     "start": "NODE_ENV=production npx tsx api/boot.ts",
     "lint": "eslint .",
     "preview": "vite preview"

@@ -47,6 +47,15 @@ async function main() {
   console.log(`passages_by_subject=${JSON.stringify(bySubject)}`);
   console.log(`passages_by_chapter=${JSON.stringify(byChapter)}`);
 
+  const passageSubjectById: Record<number, string> = {};
+  for (const p of pp) passageSubjectById[p.id] = p.subject;
+  const imagesBySubject: Record<string, number> = {};
+  for (const img of pi) {
+    const subj = passageSubjectById[img.passageId] ?? "UNKNOWN";
+    imagesBySubject[subj] = (imagesBySubject[subj] ?? 0) + 1;
+  }
+  console.log(`images_by_subject=${JSON.stringify(imagesBySubject)}`);
+
   process.exit(0);
 }
 

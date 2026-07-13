@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router";
-import { BookOpen, TrendingUp, ChevronRight, Clock, ShieldCheck, Database } from "lucide-react";
+import { BookOpen, TrendingUp, ChevronRight, Clock, Target, Users } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import MeditativeParticles from "@/components/MeditativeParticles";
 import { useExamStore } from "@/stores";
@@ -59,43 +59,94 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Overview / How it Works */}
-      <section className="px-6 py-20 border-t" style={{ backgroundColor: "var(--urt-surface)", borderColor: "var(--urt-border)" }}>
-        <div className="max-w-[960px] mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] mb-12 text-center" style={{ color: "var(--urt-ink-faint)" }}>
-            Platform Overview
+      {/* Mission: quote + origin story */}
+      <section className="px-6 pt-20 pb-4 border-t" style={{ backgroundColor: "var(--urt-surface)", borderColor: "var(--urt-border)" }}>
+        <div className="max-w-[720px] mx-auto text-center mb-20">
+          <p
+            style={{
+              fontFamily: '"DM Serif Display", Georgia, serif',
+              fontSize: "clamp(1.35rem, 2.6vw, 1.75rem)",
+              lineHeight: 1.5,
+              fontStyle: "italic",
+              color: "var(--urt-ink)",
+            }}
+          >
+            Do your little bit of good where you are; it's those little bits of good put together that overwhelm the world.
           </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] mt-5" style={{ color: "var(--urt-ink-faint)" }}>
+            Desmond Tutu
+          </p>
+        </div>
+
+        <div className="max-w-[680px] mx-auto mb-20">
+          <h2
+            className="text-2xl md:text-3xl mb-6 text-center"
+            style={{ fontFamily: '"DM Serif Display", Georgia, serif', color: "var(--urt-ink)" }}
+          >
+            Why I built this
+          </h2>
+          <p className="mb-5" style={{ fontSize: "1.05rem", lineHeight: 1.7, color: "var(--urt-ink-light)" }}>
+            I built URT-Platform because I hate being distracted. When I'm trying to study something, the last thing I want to hear is "oh, you'll find that in this Drive," followed by "wait, that other thing's in a different Drive." I'm not searching through every Drive in the world just to study one subject. So I built a place that puts everything together, every subject, every resource, all in one spot.
+          </p>
+          <p style={{ fontSize: "1.05rem", lineHeight: 1.7, color: "var(--urt-ink-light)" }}>
+            There's a more personal reason too, I've always preferred taking tests online over reading through PDFs. So instead of adding to the pile of PDFs already out there, I built somewhere you can move between subjects and resources and actually take tests the way they're meant to be taken, all in one place, and completely free.
+          </p>
+        </div>
+
+        <div className="max-w-[960px] mx-auto pb-16">
+          <h2
+            className="text-2xl md:text-3xl mb-12 text-center"
+            style={{ fontFamily: '"DM Serif Display", Georgia, serif', color: "var(--urt-ink)" }}
+          >
+            So, what do we have over here?
+          </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
+            <button
+              onClick={() => navigate("/exams")}
+              className="text-left w-full p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]"
+              style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}
+            >
               <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
                 <Clock className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Realistic Constraints</h3>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Exams</h3>
               <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
-                Each practice test enforces the actual exam time limits. The timer doesn't stop, forcing you to develop the time-management skills critical for the real test day.
+                Every past exam I could personally get my hands on, in one place, timed, laid out in the same two-pane style as the real thing, so exam day doesn't throw anything unfamiliar at you. Missing one? Upload it through the Community page and it's there for everyone after you.
               </p>
-            </div>
-            
-            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Honest Evaluation</h3>
-              <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
-                Answer keys are never sent to your browser during the test. Your submission is securely evaluated on our backend, ensuring your score reflects your actual ability without loopholes.
-              </p>
-            </div>
+            </button>
 
-            <div className="p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]" style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}>
+            <button
+              onClick={() => navigate("/practice")}
+              className="text-left w-full p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]"
+              style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}
+            >
               <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
-                <Database className="w-5 h-5" />
+                <Target className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Persistent Progress</h3>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Drill</h3>
               <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
-                Your exam history is saved directly on your device. You can track your scores over time in your dashboard—no complicated account registration needed to start practicing.
+                Five subjects, Biology, Chemistry, Physics, Geology, and English (sorry for math division :)). Every subject comes loaded with multiple resources, ACT Crack, E-Reading, and more coming soon hopefully, broken down passage by passage with instant feedback, so you actually know what you got wrong and why. It's all right here in your hands, so there's no excuse not to drill into them.
               </p>
-            </div>
+            </button>
+
+            <button
+              onClick={() => navigate("/community")}
+              className="text-left w-full p-6 rounded-2xl border transition-colors hover:border-[var(--urt-accent)]"
+              style={{ borderColor: "var(--urt-border)", backgroundColor: "var(--urt-paper)" }}
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: "var(--urt-accent-bg)", color: "var(--urt-accent)" }}>
+                <Users className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--urt-ink)" }}>Community</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--urt-ink-light)" }}>
+                The other half of the "stop scattering my resources across fifty Drives" problem. Not everything's been turned into a digital test yet, so for whatever's left, Community is a shared library where you can just upload it yourself. It's built to outlast us, whatever gets added here sticks around for the classes that come after.
+              </p>
+            </button>
           </div>
+
+          <p className="text-center text-sm italic mt-10" style={{ color: "var(--urt-ink-faint)" }}>
+            Kind of the whole point of that quote up top, honestly, one small upload at a time.
+          </p>
         </div>
       </section>
 

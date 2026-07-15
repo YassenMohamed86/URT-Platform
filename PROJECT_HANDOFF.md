@@ -20,7 +20,8 @@ Egypt. Two independent features:
 - **Drill** (newer feature, nav label "Drill"): untimed, passage-by-passage
   practice pulled from "ACT Crack" material authored by Shahd Gaber, with
   instant right/wrong feedback and a written explanation per question.
-  Organized by subject (Biology, Physics, Chemistry, Geology so far).
+  Organized by subject (Biology, Physics, Chemistry so far; Geology and
+  English pending source material).
 
 Both features share the same tRPC/Drizzle/Turso backend but use completely
 separate DB tables — Exams data was never touched by any of the Drill work.
@@ -129,7 +130,7 @@ src/lib/practiceProgress.ts  localStorage-based completion tracker (no user
 |---|---|---|---|---|
 | Biology | ✅ Done, verified live | 68 | 525 | 54 images, used across 27 passages |
 | Physics | ✅ Done, verified live | 36 | 274 | 60 images |
-| Chemistry | ✅ Done, verified live | 52 | 310 | 85 images, 28 passages have ≥1 |
+| Chemistry | ✅ Done, verified live, image audit complete | 52 | 310 | 99 images, 42 passages have ≥1 |
 | Geology | ⬜ Not started — folder confirmed **empty** on Drive, source material may not exist yet |
 | English | ⬜ Not started — Drive folder inaccessible (link-only sharing, not shared with the connected account); needs a re-share or direct upload before any work can start |
 
@@ -190,19 +191,46 @@ starting, it'll save you re-discovering the same gotchas):
   mention (`Figure 4.3 illustrates the relationship...`) by requiring any
   trailing text after the number to start with a capital letter (inline
   mentions continue with a lowercase verb).
-- **Known gap, accepted rather than chased further**: a small number of
-  tables have *zero* textual trace at all — no caption line, no data,
-  referenced only inline mid-sentence (e.g. "...listed in Table 1.") with
-  the actual table baked into an image that has its own caption text
-  drawn *inside* the image itself, invisible to `pdftotext` entirely. These
-  can't be found by any text-based heuristic; catching every one would mean
-  visually auditing most of the document's ~140 embedded images by hand.
-  Two confirmed instances (Test 2-2's Table 1, and its Table 2) were caught
-  incidentally while debugging something else and fixed by hand; others
-  likely remain. Not a correctness risk (nothing is mislabeled or wrong,
-  some supplementary tables are just missing their visual), so it wasn't
-  worth the time to hunt exhaustively — the explanations are written to be
-  self-contained enough that this doesn't block understanding.
+- **Follow-up audit (completed in a later session) found the gap above was much
+  larger than "a small number," and also found a second, unrelated bug class.**
+  A full visual audit of all 55 image candidates sitting unused beyond each
+  test's marker count (i.e. `available > markerCount`) turned up:
+  - **21 genuinely missing figures/tables across 15 tests**, not 2 — the
+    right-after-2+-blank-lines heuristic above still misses any table whose
+    caption is baked entirely into the image with zero surrounding textual
+    cue, and this happened far more than expected (e.g. Test 3-2 was missing
+    all 3 of its tables; Test 79-2 was missing all 3 of its figures *and* had
+    an outright truncated passage, see below). Confirmed one-by-one against
+    the source PDF and fixed by hand — see commit
+    "Fix Chemistry image audit" for the full list. **Lesson for the next
+    subject**: don't stop at a couple of confirmed instances and generalize
+    "this is rare" — the only reliable check is to render every unused
+    candidate image at least once, since the text-based heuristics have no
+    way to signal their own failure.
+  - **A page-boundary spillover bug, separate from the missing-marker gap**:
+    when an excluded image-choice question's answer-graphics (labeled A/B/C/D
+    or F/G/H/J *inside the image itself*) sit right at the end of one test's
+    page range, some of those choice-images get attributed to the **next**
+    test's candidate pool instead — and if the next test also needs N images,
+    the seed script's `slice(0, markerCount)` will happily assign the
+    spillover images as if they were that test's real figures, silently
+    displacing the correct ones into the unused/excess pile. Found and fixed
+    3 instances this way (Tests 63, 72-2, 78-1 were all showing wrong images
+    pulled from the tail end of Tests 61, an unidentified predecessor, and 77-1
+    respectively). **Detection signal**: an unused/excess image with a bare
+    letter label (`(A)`, `(C)`, etc.) baked into it is never real passage
+    content — always answer-choice graphics — so if a *currently displayed*
+    image has that same letter-label look, it's misassigned regardless of
+    whether the marker count matches.
+  - **A genuinely truncated passage** (Test 79-2): the bodyText cut off
+    mid-sentence ("...One mole is") with an entire "Experiment 1" section
+    (~120 words, plus the reaction equation) missing entirely — not an image
+    problem at all, but caught only because the excess-image investigation
+    led to inspecting this test's raw PDF text closely. Restored by hand from
+    the source PDF. Worth a spot-check on other subjects: **an unusually
+    short bodyText for a test with many questions is itself a signal worth
+    checking against the raw PDF**, independent of any image audit.
+  - Net result: 85 → 99 images, 28 → 42 passages with at least one image.
 - Decorative icons aren't just the ~13×13 bullet points seen in Biology —
   this source also repeats a ~62×53 blank/white circle icon 135 times
   across the document. Filter that exact size out alongside the general
@@ -316,10 +344,17 @@ branding discussions, though the live nav currently reads "URT Practice."
 - Of the raw large images extracted from each subject's PDF, only a fraction
   end up used (matched to an actual `[[FIGURE]]` marker) — confirmed via
   `images_by_subject` in `verify-counts.ts` output: Biology 54, Physics 60,
-  Chemistry 85. The rest are very likely answer-choice images belonging to
-  excluded image-choice questions (see §4), not real passage figures. This
-  is expected, not a bug — don't be alarmed if most extracted images go
-  unused, and don't try to force every extracted image into a marker slot.
+  Chemistry 99. Most of the *remaining* unused candidates really are
+  answer-choice images belonging to excluded image-choice questions (see
+  §4) — but **don't assume that of every unused image without checking**.
+  Chemistry's first pass made exactly that assumption and left 21 real
+  figures/tables un-marked and 3 tests showing the wrong image entirely; see
+  the "Follow-up audit" note above for the actual detection method (render
+  every unused candidate at least once — a bare letter label like `(A)`
+  baked into the image is the real tell for "this is an answer choice," not
+  merely "it wasn't picked up by the marker heuristic"). Treat the fraction
+  of unused images as a worklist to visually clear, not as a number to
+  shrug off.
 
 ## 8. Home / Login page copy (as of 2026-07-13)
 

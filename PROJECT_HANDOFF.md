@@ -128,11 +128,116 @@ src/lib/practiceProgress.ts  localStorage-based completion tracker (no user
 
 | Subject | Status | Passages | Questions | Figures |
 |---|---|---|---|---|
-| Biology | ✅ Done, verified live | 68 | 525 | 54 images, used across 27 passages |
+| Biology | ✅ Image audit complete — 3 content gaps flagged, need source PDF (see below) | 68 seeded (2 more exist in source) | 525 seeded (12 more exist in source) | 144 images, 58/68 passages have ≥1 |
 | Physics | ✅ Done, verified live | 36 | 274 | 60 images |
 | Chemistry | ✅ Done, verified live, image audit complete | 52 | 310 | 99 images, 42 passages have ≥1 |
 | Geology | ⬜ Not started — folder confirmed **empty** on Drive, source material may not exist yet |
 | English | ⬜ Not started — Drive folder inaccessible (link-only sharing, not shared with the connected account); needs a re-share or direct upload before any work can start |
+
+**Biology specifically** (final QA pass done 2026-07-19, pre-deployment —
+Biology was built *before* the Chemistry lessons below existed, so it never
+got the same image audit until now):
+
+- **Same missing-marker bug as Chemistry, worse and confirmed across the
+  board**: a full visual audit of all 191 image candidates (not just the
+  ones a text heuristic flagged) found **90 genuinely unused real
+  figures/tables across 28 tests** — mostly `Table N` captions the original
+  pipeline extracted as bare orphaned caption text but never converted to a
+  `[[FIGURE]]` marker for, plus a handful of `Figure N` cases where the
+  answer key doesn't cite the figure by number at all (so no text-only
+  heuristic would ever catch it — e.g. Test 23-7's phospholipid-bilayer
+  diagram, Test 6-1's hypothesis diagrams) and it's only findable by reading
+  the body text directly or looking at the actual image. Fixed by anchoring
+  each marker insertion to the exact sentence/caption already present in
+  that passage's `bodyText` — never guessed a position blind. Verified live
+  via `verify-counts.ts`: `images_by_subject.Biology` went from 54 → **144**.
+- **Two misalignment bugs, same root cause as Chemistry's page-boundary
+  spillover but different mechanism**: `seed-biology.ts` assigns images to
+  markers strictly by array order (`slice(0, markerCount)`), so *any* marker
+  missing earlier in a passage pushes every later marker one slot out of
+  sync against the real image array — no error, no broken-image icon, the
+  frontend's `images[i] &&` guard just silently renders nothing for an
+  out-of-range index (`PracticeSession.tsx`'s `PassageContent`). Found two:
+  - **Test 69-1**: a bare `Table 1` caption had zero marker before the
+    `Figure 1` (family tree) marker. Result: the family-tree marker was
+    showing the genotype-table image and the next marker was showing the
+    family tree — both wrong. Added the missing Table 1 marker to realign.
+    Still short 3 images (the Study 1/2/3 Punnett squares) that were
+    apparently never extracted at all — can't fix without the source PDF,
+    those 3 marker slots currently render nothing.
+  - **Test 89-2**: `Figure 1`'s line graph (AI vs. toxin concentration) was
+    apparently never extracted, but its marker was still in the text, so
+    the two real images (Fig 2 bar chart, Fig 3 micrograph) were each
+    showing one slot early. Removed the orphaned Figure 1 marker so the
+    two real images now map to their correct figures. Figure 1 itself still
+    has no image — needs the source PDF.
+  - **Detection method**: don't just diff marker-count vs. available-count.
+    Read the actual `bodyText` for any flagged test — a bare caption line
+    with *no* marker anywhere near it, sitting *before* other markers that
+    already exist, is the tell. A pure count-based check would have missed
+    both of these (Test 69-1's counts looked like "needs 3 more images,
+    has 0" — technically true, but the *existing* 2 were also wrong).
+- **A genuine mis-positioned (not missing) marker**: Test 115's `Figure 1`
+  marker existed but sat at the very end of the passage, several sentences
+  after "Figure 1 identifies some of the different stages of soybean
+  growth" — a reader would hit that sentence, keep reading through
+  unrelated R1-R4 timing content, and only then see the image. Moved it to
+  right after the sentence that introduces it.
+- **Two "one marker, two distinct figures" cases**: Test 15-1 and Test 23-4
+  each had a single `[[FIGURE]]` marker sitting after a sentence that
+  actually introduces *two* separate cited figures (e.g. "Figure 2 shows...
+  Table 1 shows..." in one paragraph, one marker). Split each into two
+  markers so the second real image in that test's array — previously just
+  sitting unused — actually gets shown.
+- **False positives worth knowing about, so a future pass doesn't "fix"
+  them again**: several short reference tables (Test 20-2's group
+  definitions, Test 23-4's Table 1 wavelength/color list, Test 80-2's Table
+  1, Test 88-1's Table 1, Test 8-2's Table 1, Test 9-1's Tables 2/3) turned
+  out to already be correctly embedded as literal structured text in
+  `bodyText` — no image needed, exactly per the "Table captions are
+  ambiguous" note in the Chemistry section below. And Test 28 / Test 67-1 /
+  Test 84-1's unused candidate images are (based on the answer key
+  discussing an answer-choice-is-itself-a-graph question in each) very
+  likely legitimate excluded answer-choice graphics, not missing figures —
+  left alone.
+- **I made and caught my own version of this bug mid-session**: an early
+  anchor for Test 39 was chosen carelessly and landed a marker *inside* a
+  sentence ("...the same `[[FIGURE]]` gene."). Caught by an automated
+  scan (marker immediately preceded/followed by a letter with no
+  whitespace) run across every touched passage before committing — zero
+  hits after the fix. Worth re-running that scan (search this file's repo
+  for the one-off script pattern, or just re-derive: `re.finditer(r'\[\[FIGURE\]\]')`
+  and check the adjacent characters aren't alphabetic) after any future
+  bulk marker edit.
+- **Three things found that need the source PDF, not code — flagged, not
+  fixed:**
+  1. **Test 84-1 body text is truncated to 250 characters** (2 sentences)
+     for a 6-question passage. It cuts off mid-list ("...criteria for
+     selecting an indicator include:" — then nothing). The answer key
+     clearly discusses full "Researcher 1" and "Researcher 2" argument
+     sections spanning multiple paragraphs each that aren't present in the
+     DB at all. Same bug class as Chemistry's Test 79-2, same fix needed:
+     re-extract this passage's full text from the source questions PDF.
+  2. **Test 76-2 and Test 78-2 are completely absent from
+     `practice-biology.json`** despite having full question sets (5 and 7
+     questions respectively) with explanations in the answers PDF — true
+     source count is **70 passages / 537 questions**, not 68/525. Not a
+     naming/merge issue — confirmed by grepping every testCode containing
+     "76" or "78" in the seeded JSON, found nothing. Needs the original
+     questions PDF to add these two passages (and their images — Test 76-2
+     references 2 figures, Test 78-2 references a figure + table) from
+     scratch.
+  3. **Test 40 and Test 23-7 have real candidate images (8 and 5
+     respectively) but zero textual anchor anywhere in their `bodyText`** —
+     no "Figure N" or "Table N" mention at all, despite the answer key
+     citing "Figure 6.3" / "Figure 6.10" for Test 40 and clearly describing
+     a phospholipid-bilayer diagram for Test 23-7's Q40. This reads like
+     lost passage text (sentences that should exist were dropped somewhere
+     in the original extraction), not just a missing marker — I did not
+     guess-insert markers with no anchor to check against, since a wrong
+     guess here creates a new positioning bug instead of fixing a missing
+     one. Needs a full re-extraction from the source PDF for these two
+     specifically, not just an image re-check.
 
 **Chemistry specifically** (done — for the next subject, read this before
 starting, it'll save you re-discovering the same gotchas):
@@ -343,18 +448,25 @@ branding discussions, though the live nav currently reads "URT Practice."
   (SELECT id FROM practice_questions)` cleanup someday, not urgent.
 - Of the raw large images extracted from each subject's PDF, only a fraction
   end up used (matched to an actual `[[FIGURE]]` marker) — confirmed via
-  `images_by_subject` in `verify-counts.ts` output: Biology 54, Physics 60,
-  Chemistry 99. Most of the *remaining* unused candidates really are
-  answer-choice images belonging to excluded image-choice questions (see
-  §4) — but **don't assume that of every unused image without checking**.
-  Chemistry's first pass made exactly that assumption and left 21 real
-  figures/tables un-marked and 3 tests showing the wrong image entirely; see
-  the "Follow-up audit" note above for the actual detection method (render
-  every unused candidate at least once — a bare letter label like `(A)`
-  baked into the image is the real tell for "this is an answer choice," not
-  merely "it wasn't picked up by the marker heuristic"). Treat the fraction
-  of unused images as a worklist to visually clear, not as a number to
-  shrug off.
+  `images_by_subject` in `verify-counts.ts` output as of 2026-07-19:
+  Biology 144, Physics 60, Chemistry 99. Most of the *remaining* unused
+  candidates really are answer-choice images belonging to excluded
+  image-choice questions (see §4) — but **don't assume that of every
+  unused image without checking**. Both Chemistry's and Biology's first
+  passes made exactly that assumption and between them left 111 real
+  figures/tables un-marked plus several tests showing the wrong image
+  entirely; see the "Follow-up audit" / "final QA pass" notes above for the
+  actual detection method (render every unused candidate at least once — a
+  bare letter label like `(A)` baked into the image is the real tell for
+  "this is an answer choice," not merely "it wasn't picked up by the marker
+  heuristic"). **Physics has not had this audit yet** — do it before
+  calling Physics done-done, using the same method: cross-reference the
+  answers PDF's Figure/Table citations against marker counts for a
+  priority order, then read every flagged passage's actual `bodyText` for
+  the exact anchor before inserting anything, and visually spot-check
+  tests where `available > markers` even when the text heuristic doesn't
+  flag them (Biology had several real figures a pure citation-count check
+  completely missed).
 
 ## 8. Home / Login page copy (as of 2026-07-13)
 
